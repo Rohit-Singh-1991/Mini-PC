@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0a0d12">
+  <title>PromptPilot — Code signing policy</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0a0d12;--panel:#111721;--line:#273140;--muted:#a8b5c7;--text:#edf3fb;--accent:#a396ff;--amber:#ffd28a}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 75% -15%,#2c275a 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.65 Inter,system-ui,-apple-system,Segoe UI,sans-serif;padding:clamp(16px,4vw,48px)}
+    main{max-width:880px;margin:0 auto}.back{color:#c6bdff}h1{line-height:1.15}h2{margin-top:28px;font-size:19px}.muted{color:var(--muted)}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin:18px 0}.status{border-left:4px solid var(--amber)}a{color:#c6bdff}li{margin:8px 0}code{overflow-wrap:anywhere}
+  </style>
+</head>
+<body>
+<main>
+  <p><a class="back" href="/">← Back to PromptPilot</a></p>
+  <h1>PromptPilot — Code signing policy</h1>
+  <div class="panel status">
+    <strong>Current status: the published Windows installer is unsigned.</strong>
+    <p class="muted">The project has not yet received approval for a trusted signing certificate. We will describe a release as Authenticode-signed only after Windows verifies a valid signature and timestamp. Do not treat any current installer as signed.</p>
+  </div>
+  <h2>Planned signing attribution</h2>
+  <p>Only after approval, the planned attribution is: “Free code signing provided by SignPath.io, certificate by SignPath Foundation”. This is a planned route; SignPath Foundation has not yet approved the project.</p>
+  <h2>What will be signed</h2>
+  <p>Only the PromptPilot setup executable built from the public <a href="https://github.com/Rohit-Singh-1991/Mini-PC">Mini-PC source repository</a> by the Windows GitHub Actions workflow may be submitted for signing. Third-party tools, Node packages, Chromium, Ollama models and cloud services are not signed by PromptPilot.</p>
+  <h2>Team roles</h2>
+  <ul>
+    <li><strong>Committer and maintainer:</strong> <a href="https://github.com/Rohit-Singh-1991">Rohit-Singh-1991</a>, the public repository owner.</li>
+    <li><strong>Reviewer:</strong> the maintainer reviews changes; outside contributions should be submitted through pull requests and reviewed before merge.</li>
+    <li><strong>Signing approver:</strong> the maintainer manually reviews every release-signing request.</li>
+  </ul>
+  <h2>Privacy</h2>
+  <p>This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. Browser automation, prompt planning and desktop actions run locally. The hosted dashboard can reach the local agent only when the user starts the temporary tunnel and provides its URL and bearer token.</p>
+  <p>Third-party privacy information: <a href="https://ollama.com/legal">Ollama</a>, <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare</a> and <a href="https://docs.npmjs.com/policies/privacy">npm</a>.</p>
+  <h2>Install and uninstall</h2>
+  <p>The Windows wizard offers browser-only or full PC-vision installation. Uninstall through Windows Settings → Apps → Installed apps → PromptPilot Local Agent → Uninstall. This removes the PromptPilot installation folder and shortcuts; it does not remove independently installed Node.js, Ollama, Cloudflare Tunnel or the models downloaded into Ollama.</p>
+  <h2>Verify a signed release</h2>
+  <pre><code>Get-AuthenticodeSignature .\PromptPilotSetup.exe | Format-List Status,SignerCertificate,TimeStamperCertificate
+Get-FileHash .\PromptPilotSetup.exe -Algorithm SHA256</code></pre>
+  <p>Expected status is <code>Valid</code>, with both a signer and timestamp certificate. A valid signature confirms signer identity and file integrity but does not guarantee immediate SmartScreen reputation.</p>
+  <h2>Application status</h2>
+  <p>Free signing through SignPath Foundation is subject to application review, a configured trusted build system and project, code-signing policy configuration, and manual approval for every release. The signing workflow will not publish an asset if signing credentials and project configuration are absent.</p>
+  <p>Read the <a href="https://github.com/Rohit-Singh-1991/Mini-PC/blob/main/docs/CODE-SIGNING.md">full code signing guide</a> and <a href="https://signpath.org/terms">SignPath Foundation terms</a>.</p>
+</main>
+</body>
+</html>
