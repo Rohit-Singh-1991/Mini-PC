@@ -8,17 +8,16 @@ The dashboard is hosted in the cloud. Ollama, Chromium/Playwright and desktop co
 
 Requirements: Node.js 22+, Ollama (https://ollama.com/download), and a desktop computer. Optional for remote dashboard access: Cloudflare Tunnel Quick Tunnel, which needs no account or domain.
 
-## Windows
+## Windows (recommended: setup wizard)
 
-1. Download the agent files from Connection & setup.
-2. Put them in a new folder, inspect `install.ps1`, then run PowerShell in that folder:
-   ```powershell
-   Set-ExecutionPolicy -Scope Process Bypass
-   .\install.ps1
-   ```
-3. Run `npm start` and copy the bearer token printed in the terminal.
+1. Download and run the [PromptPilot Windows installer](https://github.com/Rohit-Singh-1991/Mini-PC/releases/latest/download/PromptPilotSetup.exe).
+2. Choose **Full install** for browser automation plus PC control, or **Browser automation only** if you do not want the extra vision model. Full install downloads `llava:7b`, which is several gigabytes.
+3. The installer runs `installer/install-agent.bat`. The batch script checks for Node.js 22+ and Ollama, attempts to install missing prerequisites with Windows Package Manager (winget), installs npm dependencies and Playwright Chromium, starts/checks Ollama, and pulls `qwen2.5:3b` plus the optional PC vision model. If winget installation is unavailable, install Node.js from https://nodejs.org/ and Ollama from https://ollama.com/download, then rerun the batch script in the installed `PromptPilotAgent` folder.
+4. Open **Start PromptPilot Agent** from the Start Menu. Keep the terminal open and copy the bearer token it prints.
+5. Open **Start PromptPilot Tunnel** in a second window. Copy the temporary HTTPS `trycloudflare.com` URL printed there.
+6. Open [the PromptPilot dashboard](https://inapp-pc.vercel.app), open **Connection & setup**, and enter the tunnel URL and bearer token. Save & connect.
 
-The script installs dependencies/Chromium and downloads qwen2.5:3b when Ollama is available.
+The batch script shows its commands and their output in a terminal. The tunnel URL changes when a new Quick Tunnel starts. Keep both terminal windows open while using PromptPilot and stop them afterward.
 
 ## macOS / Linux
 
