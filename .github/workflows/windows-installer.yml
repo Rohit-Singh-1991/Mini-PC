@@ -9,9 +9,13 @@ on:
       - ".github/workflows/windows-installer.yml"
       - "README.md"
       - "docs/CODE-SIGNING.md"
+      - "code-signing.html"
+      - "index.html"
+      - "build.mjs"
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
@@ -55,7 +59,7 @@ jobs:
             "ready=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
             "## Authenticode signing is not configured" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
             "The setup wizard compiled, but no public release was published because trusted signing is not configured. Complete the steps in [docs/CODE-SIGNING.md](https://github.com/Rohit-Singh-1991/Mini-PC/blob/main/docs/CODE-SIGNING.md)." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-            Write-Warning ("Missing GitHub Actions secrets/variables: " + ($missing -join ", "))
+            Write-Error ("Missing GitHub Actions secrets/variables: " + ($missing -join ", ") + ". Trusted signing is required before publishing. Follow docs/CODE-SIGNING.md.")
           } else {
             "ready=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
             "SignPath credentials and project variables are configured." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
@@ -68,13 +72,12 @@ jobs:
         with:
           name: PromptPilot-Windows-Installer-Unsigned
           path: dist-installer/PromptPilotSetup.exe
-          archive: false
           if-no-files-found: error
           retention-days: 7
 
       - name: Submit Authenticode signing request
         if: steps.signing-config.outputs.ready == 'true'
-        uses: signpath/github-action-submit-signing-request@v3
+        uses: signpath/github-action-submit-signing-request@4184a38a17e5b37d026a3ed443581c1f03ae1b3a # v3.0, pinned to an immutable commit
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -82,6 +85,7 @@ jobs:
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
           github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
           wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
           output-artifact-directory: signed-installer
 
       - name: Verify Authenticode signature and timestamp
@@ -124,10 +128,17 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: PromptPilot Windows Installer (Authenticode-signed)
           body: |
-            Authenticode-signed Windows installer for PromptPilot.
+            # PromptPilot Windows installer (Authenticode-signed)
+
+            Free code signing provided by SignPath.io, certificate by SignPath Foundation.
 
             This asset is published only after SignPath has completed signing and Windows reports a valid Authenticode signature with a trusted timestamp. Verify the signature with PowerShell:
             Get-AuthenticodeSignature .\PromptPilotSetup.exe | Format-List Status,SignerCertificate,TimeStamperCertificate
+
+            Code signing policy: https://inapp-pc.vercel.app/code-signing.html
+            Committers and reviewers: https://github.com/Rohit-Singh-1991
+            Signing approver: https://github.com/Rohit-Singh-1991
+            Privacy: This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
 
             Choose Full install for browser automation plus PC-control vision, or Browser automation only to skip the extra vision model.
             After setup, launch Start PromptPilot Agent and Start PromptPilot Tunnel from the Start Menu. The local agent and all desktop/browser actions run on your own PC. The temporary tunnel URL and bearer token are secrets.
