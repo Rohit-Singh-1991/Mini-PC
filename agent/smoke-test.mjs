@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { isPrivateAddress, safeUrl, safeWebSocketUrl, redactUrlForDisplay } from './security.mjs';
 import { actionNeedsApproval } from './approval-policy.mjs';
+import { allowedAgentOrigin } from '../agent-connection-policy.mjs';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -50,7 +51,22 @@ assert.equal(actionNeedsApproval({
 }), true, 'button/form actions must pause for approval');
 assert.equal(actionNeedsApproval({ action: { tool: 'pc_click' }, mode: 'pc' }), true, 'desktop actions must pause for approval');
 
+const allowedConnectCases=[
+  ['https://random-word.trycloudflare.com',true],
+  ['http://localhost:3920',true],
+  ['http://127.0.0.1:3920',true],
+  ['https://evil.example.com',false],
+  ['https://trycloudflare.com',false],
+  ['https://user:secret@random-word.trycloudflare.com',false],
+  ['https://random-word.trycloudflare.com/agent',false],
+  ['https://random-word.trycloudflare.com/?token=secret',false]
+];
+for(const [url,expected] of allowedConnectCases) {
+  assert.equal(Boolean(allowedAgentOrigin(url)),expected,'agent connection policy for '+url);
+}
+
 console.log('PASS IP classification: private, special-use, mapped IPv4 and public IPv6 cases');
+console.log('PASS dashboard bearer-token target allowlist');
 console.log('PASS unsafe URL credential rejection');
 console.log('PASS conservative browser/desktop action approval policy');
 
