@@ -64,7 +64,7 @@ jobs:
       - name: Upload unsigned candidate for SignPath
         if: steps.signing-config.outputs.ready == 'true'
         id: upload-unsigned-artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: PromptPilot-Windows-Installer-Unsigned
           path: dist-installer/PromptPilotSetup.exe
@@ -109,7 +109,7 @@ jobs:
 
       - name: Upload verified signed installer artifact
         if: steps.signing-config.outputs.ready == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: PromptPilot-Windows-Installer-Signed
           path: dist-installer-signed/PromptPilotSetup.exe
