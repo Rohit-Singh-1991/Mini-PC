@@ -36,7 +36,7 @@ jobs:
           const h=fs.readFileSync("index.html","utf8");
           const app=fs.readFileSync("app.js","utf8");
           if (!h.includes('<script src="/app.js" defer></script>')) throw new Error("dashboard must load external app.js");
-          if (/<script>([\\s\\S]*?)<\\/script>/.test(h)) throw new Error("inline scripts are forbidden by the release CSP");
+          if (/<script>([\s\S]*?)<\/script>/.test(h)) throw new Error("inline scripts are forbidden by the release CSP");
           new Function(app);
           for (const s of ["prompt","agentUrl","agentToken","previewImage","allowPC","sessionStorage","URL security module","Approval policy","/api/run","/api/approve","/api/pc/click","/agent/agent.mjs","/agent/mcp-bridge.mjs"]) if (!h.includes(s)) throw new Error("missing UI element or route: "+s);
           const a=fs.readFileSync("agent/agent.mjs","utf8");
