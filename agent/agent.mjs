@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { safeUrl } from './security.mjs';
+import { safeUrl, redactUrlForDisplay } from './security.mjs';
 import { actionNeedsApproval } from './approval-policy.mjs';
 const PORT=Number(process.env.PORT||3920),HOST='127.0.0.1',TOKEN_FILE=path.join(process.cwd(),'.promptpilot-token'),OLLAMA=(process.env.OLLAMA_URL||'http://127.0.0.1:11434').replace(/\/+$/,''),TEXT_MODEL=process.env.OLLAMA_MODEL||'qwen2.5:3b',VISION_MODEL=process.env.OLLAMA_VISION_MODEL||'llava:7b';
 const ORIGINS=new Set((process.env.PROMPTPILOT_ALLOWED_ORIGINS||'https://inapp-pc.vercel.app,https://inapp-pc-newdivide4-8630.vercel.app,http://localhost:5173').split(',').map(x=>x.trim()).filter(Boolean));
@@ -16,8 +16,8 @@ function auth(req){const h=req.headers.authorization||'',t=h.startsWith('Bearer 
 async function parse(req){let b='';for await(const chunk of req){b+=chunk;if(Buffer.byteLength(b)>1048576)throw new Error('Request too large')}if(!b)return {};try{return JSON.parse(b)}catch{throw new Error('Invalid JSON')}}
 async function ollamaStatus(){try{const r=await fetch(OLLAMA+'/api/tags',{signal:AbortSignal.timeout(2500)});if(!r.ok)return{reachable:false,models:[],text:false,vision:false,httpStatus:r.status,error:'Ollama endpoint returned HTTP '+r.status+' at '+OLLAMA+'/api/tags. Verify Ollama is running and OLLAMA_URL points to its base URL.'};const d=await r.json(),models=(d.models||[]).map(x=>x.name);return{reachable:true,models,text:models.some(n=>n===TEXT_MODEL||n.startsWith(TEXT_MODEL+':')),vision:models.some(n=>n===VISION_MODEL||n.startsWith(VISION_MODEL)),httpStatus:r.status,error:null}}catch{return{reachable:false,models:[],text:false,vision:false,error:'Cannot reach '+OLLAMA+'/api/tags. Start Ollama and check OLLAMA_URL.'}}}
 async function getPage(){if(!browser||!browser.isConnected())browser=await(await import('playwright')).chromium.launch({headless:true});if(!context){context=await browser.newContext({viewport:{width:1365,height:850},acceptDownloads:false});await context.route('**/*',async r=>{const u=r.request().url();if(u.startsWith('about:')||u.startsWith('data:')||u.startsWith('blob:'))return r.continue();try{await safeUrl(u);return r.continue()}catch{return r.abort('blockedbyclient')}})}if(!page||page.isClosed())page=await context.newPage();return page}
-async function snapshot(){const p=await getPage(),d=await p.evaluate(()=>{const clean=s=>String(s||'').replace(/\s+/g,' ').trim();const controls=[...document.querySelectorAll('input,textarea,select,button,a,[role="button"]')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'}).slice(0,90).map(e=>{const labels=e.labels?[...e.labels].map(l=>clean(l.innerText)).join(' ').slice(0,140):'',type=clean(e.getAttribute('type')||e.tagName.toLowerCase()).slice(0,140),label=clean([labels,e.getAttribute('aria-label'),e.getAttribute('name'),e.id,e.getAttribute('placeholder'),e.innerText].filter(Boolean).join(' | ')).slice(0,140),secret=/password|passcode|otp|verification code|captcha|cvv|cvc|card number|bank account|security code|recovery code/i.test(label+' '+type);return{tag:e.tagName.toLowerCase(),type,label,value:secret?'[sensitive; user enters manually]':(['INPUT','TEXTAREA','SELECT'].includes(e.tagName)?clean(e.value).slice(0,500):''),disabled:!!e.disabled}});return{title:document.title,body:clean(document.body?.innerText||'').slice(0,8000),controls}});currentUrl=p.url();return{url:currentUrl,...d}}
-async function browserShot(){const p=await getPage(),b=await p.screenshot({type:'jpeg',quality:65,timeout:8000}),v=p.viewportSize()||{width:1365,height:850};currentUrl=p.url();return{mime:'image/jpeg',base64:b.toString('base64'),width:v.width,height:v.height,url:currentUrl}}
+async function snapshot(){const p=await getPage(),d=await p.evaluate(()=>{const clean=s=>String(s||'').replace(/\s+/g,' ').trim();const controls=[...document.querySelectorAll('input,textarea,select,button,a,[role="button"]')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'}).slice(0,90).map(e=>{const labels=e.labels?[...e.labels].map(l=>clean(l.innerText)).join(' ').slice(0,140):'',type=clean(e.getAttribute('type')||e.tagName.toLowerCase()).slice(0,140),label=clean([labels,e.getAttribute('aria-label'),e.getAttribute('name'),e.id,e.getAttribute('placeholder'),e.innerText].filter(Boolean).join(' | ')).slice(0,140),secret=/password|passcode|otp|verification code|captcha|cvv|cvc|card number|bank account|security code|recovery code/i.test(label+' '+type);return{tag:e.tagName.toLowerCase(),type,label,value:secret?'[sensitive; user enters manually]':(['INPUT','TEXTAREA','SELECT'].includes(e.tagName)?clean(e.value).slice(0,500):''),disabled:!!e.disabled}});return{title:document.title,body:clean(document.body?.innerText||'').slice(0,8000),controls}});currentUrl=redactUrlForDisplay(p.url());return{url:currentUrl,...d}}
+async function browserShot(){const p=await getPage(),b=await p.screenshot({type:'jpeg',quality:65,timeout:8000}),v=p.viewportSize()||{width:1365,height:850};currentUrl=redactUrlForDisplay(p.url());return{mime:'image/jpeg',base64:b.toString('base64'),width:v.width,height:v.height,url:currentUrl}}
 async function desktopShot(){if(!pcPermission)throw new Error('PC control permission is off. Enable it for the run first.');const m=await import('@nut-tree-fork/nut-js'),n=m.mouse?m:m.default,sm=await import('screenshot-desktop'),shot=sm.default||sm,b=await shot({format:'jpg'});return{mime:'image/jpeg',base64:Buffer.from(b).toString('base64'),width:await n.screen.width(),height:await n.screen.height(),url:'Desktop'}}
 async function takeShot(mode=currentMode){return mode==='pc'?desktopShot():browserShot()}
 const SCHEMA={type:'object',properties:{tool:{type:'string',enum:['navigate','click','fill','select','scroll','extract','pc_click','pc_type','pc_key','done']},summary:{type:'string'},url:{type:'string'},target:{type:'string'},value:{type:'string'},key:{type:'string'},x:{type:'integer'},y:{type:'integer'},amount:{type:'integer'}},required:['tool','summary']};
@@ -39,11 +39,11 @@ async function resolveClickTarget(target){
 }
 async function browserAction(a){
  const p=await getPage();
- if(a.tool==='navigate'){await p.goto((await safeUrl(a.url)).href,{waitUntil:'domcontentloaded',timeout:25000});currentUrl=p.url();return'Navigated to '+currentUrl}
+ if(a.tool==='navigate'){await p.goto((await safeUrl(a.url)).href,{waitUntil:'domcontentloaded',timeout:25000});currentUrl=redactUrlForDisplay(p.url());return'Navigated to '+currentUrl}
  if(a.tool==='click'){
   const t=String(a.target||'').trim(),{locator,info}=await resolveClickTarget(t);
   if(info.href)await safeUrl(info.href);
-  await locator.click({timeout:5000});currentUrl=p.url();return'Clicked '+t.slice(0,90)
+  await locator.click({timeout:5000});currentUrl=redactUrlForDisplay(p.url());return'Clicked '+t.slice(0,90)
  }
  if(a.tool==='fill'){const v=String(a.value||'');if(v.length>1500)throw new Error('Field value too long.');await(await field(String(a.target||''))).fill(v,{timeout:4000});return'Filled field; value not logged.'}
  if(a.tool==='select'){await(await field(String(a.target||''))).selectOption({label:String(a.value||'')},{timeout:4000});return'Selected option.'}
@@ -83,7 +83,7 @@ async function runPrompt(prompt,mode,limit,options={}){
   if(lastSteps.length>=limit)message='Reached the step limit. Review the screen and run a follow-up prompt.'
  }finally{busy=false;lastActivity=new Date().toISOString()}
  const screenshot=await takeShot(mode).catch(()=>null);
- currentUrl=mode==='browser'?(page?.url()||currentUrl):'Desktop';
+ currentUrl=mode==='browser'?redactUrlForDisplay(page?.url()||currentUrl):'Desktop';
  if(mode==='pc'&&options.autoRevokePc===true&&!pending)pcPermission=false;
  lastResult={message,mode,steps:lastSteps,currentUrl,screenshot,pendingApproval:pending?{description:pending.description}:null,desktopPermission:pcPermission};
  return lastResult
@@ -120,15 +120,15 @@ if(u.pathname==='/api/approve'){
    const resumed=await runPrompt(p.resume.prompt,p.resume.mode,p.resume.limit,{startStep:p.resume.nextStep,previous:completedStep,autoRevokePc:p.resume.autoRevokePc===true});
    return send(res,200,{...resumed,message:(resumed.message||'Task continued.')+' (Approved action executed; task resumed.)'},cors)
   }
-  const screenshot=await takeShot(p.mode).catch(()=>null),current=p.mode==='browser'?(page?.url()||currentUrl):'Desktop';
+  const screenshot=await takeShot(p.mode).catch(()=>null),current=p.mode==='browser'?redactUrlForDisplay(page?.url()||currentUrl):'Desktop';
   currentUrl=current;
   if(p.resume?.autoRevokePc===true&&p.mode==='pc')pcPermission=false;
   return send(res,200,{message:'Approved action executed. '+(p.resume?'Task step limit reached; review results before starting a new prompt.':''),currentUrl,screenshot,steps:lastSteps,pendingApproval:null,desktopPermission:pcPermission},cors)
  }catch(e){if(p.mode==='pc'&&p.resume?.autoRevokePc===true)pcPermission=false;return send(res,502,{error:e instanceof Error?e.message:'Action failed.'},cors)}
 }
 if(u.pathname==='/api/stop'){stopped=true;pending=null;return send(res,200,{message:'Stop requested. The current action may finish, but no new actions will be planned.'},cors)}
-if(u.pathname==='/api/browser/navigate'){const p=await getPage();await p.goto((await safeUrl(String(b.url||''))).href,{waitUntil:'domcontentloaded',timeout:25000});currentMode='browser';currentUrl=p.url();return send(res,200,{message:'Browser navigated.',currentUrl,screenshot:await browserShot()},cors)}
-if(u.pathname==='/api/browser/click'){const p=await getPage(),v=p.viewportSize()||{width:1365,height:850},x=Number(b.x)/Math.max(1,Number(b.width))*v.width,y=Number(b.y)/Math.max(1,Number(b.height))*v.height;if(![x,y].every(Number.isFinite)||x<0||y<0||x>v.width||y>v.height)return send(res,400,{error:'Outside viewport.'},cors);await p.mouse.click(x,y);currentMode='browser';currentUrl=p.url();return send(res,200,{currentUrl,screenshot:await browserShot()},cors)}
+if(u.pathname==='/api/browser/navigate'){const p=await getPage();await p.goto((await safeUrl(String(b.url||''))).href,{waitUntil:'domcontentloaded',timeout:25000});currentMode='browser';currentUrl=redactUrlForDisplay(p.url());return send(res,200,{message:'Browser navigated.',currentUrl,screenshot:await browserShot()},cors)}
+if(u.pathname==='/api/browser/click'){const p=await getPage(),v=p.viewportSize()||{width:1365,height:850},x=Number(b.x)/Math.max(1,Number(b.width))*v.width,y=Number(b.y)/Math.max(1,Number(b.height))*v.height;if(![x,y].every(Number.isFinite)||x<0||y<0||x>v.width||y>v.height)return send(res,400,{error:'Outside viewport.'},cors);await p.mouse.click(x,y);currentMode='browser';currentUrl=redactUrlForDisplay(p.url());return send(res,200,{currentUrl,screenshot:await browserShot()},cors)}
 if(u.pathname==='/api/pc/click'){if(b.allowPcControl!==true||!pcPermission)return send(res,403,{error:'Enable desktop control before direct clicking.'},cors);const m=await import('@nut-tree-fork/nut-js'),n=m.mouse?m:m.default,x=Number(b.x),y=Number(b.y),w=await n.screen.width(),h=await n.screen.height();if(![x,y].every(Number.isFinite)||x<0||y<0||x>=w||y>=h)return send(res,400,{error:'Outside desktop.'},cors);await n.mouse.move(n.straightTo(new n.Point(Math.round(x),Math.round(y))));await n.mouse.click(n.Button.LEFT);return send(res,200,{screenshot:await desktopShot(),currentUrl:'Desktop'},cors)}
 if(u.pathname==='/api/pc/authorize'){if(b.allowPcControl!==true)return send(res,400,{error:'Explicit PC-control permission is required.'},cors);pcPermission=true;return send(res,200,{message:'PC-control permission enabled for this local agent session.'},cors)}
 if(u.pathname==='/api/pc/revoke'){pcPermission=false;return send(res,200,{message:'PC permission revoked.'},cors)}
