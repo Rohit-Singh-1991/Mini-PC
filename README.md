@@ -9,7 +9,7 @@ A free, local-first dashboard for an in-app browser and supervised desktop PC co
 - Uses Ollama running on your PC for prompt-driven planning; no hosted AI API is required.
 - Provides optional desktop screenshot/mouse/keyboard control after explicit permission.
 - Includes a bearer-token authenticated experimental MCP bridge for compatible clients.
-- Blocks private/local network destinations, rechecks browser subrequests and redirects, and pauses potentially consequential browser/desktop actions for explicit approval.
+- Blocks private/local network destinations, rechecks browser subrequests, redirects and WebSockets, redacts credential-like URL parameters, and pauses potentially consequential browser/desktop actions for explicit approval.
 
 ## Windows setup
 Requirements: Node.js 22+, Ollama, and the Windows PC you want to control.
