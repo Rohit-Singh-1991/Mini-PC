@@ -17,6 +17,8 @@ jobs:
           node-version: 22
       - name: Check agent syntax
         run: node --check agent/agent.mjs
+      - name: Check dashboard ES-module syntax
+        run: node --check app.js && node --check agent-connection-policy.mjs
       - name: Validate local-agent package metadata
         run: node -e "const p=require('./agent/package.json'); if(p.engines.node !== '>=22') process.exit(1); console.log(p.name, p.version)"
       - name: Build hosted dashboard and download kit
@@ -35,12 +37,12 @@ jobs:
           import fs from "node:fs";
           const h=fs.readFileSync("index.html","utf8");
           const app=fs.readFileSync("app.js","utf8");
-          if (!h.includes('<script src="/app.js" defer></script>')) throw new Error("dashboard must load external app.js");
+          if (!h.includes('<script type="module" src="/app.js"></script>')) throw new Error("dashboard must load external app.js as a module");
           if (/<script>([\s\S]*?)<\/script>/.test(h)) throw new Error("inline scripts are forbidden by the release CSP");
-          new Function(app);
+          if (!app.includes("import { allowedAgentOrigin } from './agent-connection-policy.mjs';")) throw new Error("dashboard must use the tested agent-origin allowlist");
           for (const s of ["prompt","agentUrl","agentToken","previewImage","allowPC","URL security module","Approval policy","/agent/agent.mjs","/agent/mcp-bridge.mjs"]) if (!h.includes(s)) throw new Error("missing UI element or route: "+s);
           for (const s of ["sessionStorage","/api/run","/api/approve","/api/pc/click"]) if (!app.includes(s)) throw new Error("missing dashboard behavior: "+s);
-          for (const s of ["app.js","index.html"]) if (!fs.existsSync("dist/"+s)) throw new Error("production build is missing dist/"+s);
+          for (const s of ["app.js","index.html","agent-connection-policy.mjs"]) if (!fs.existsSync("dist/"+s)) throw new Error("production build is missing dist/"+s);
           for (const s of ["security.mjs","approval-policy.mjs","mcp-bridge.mjs","install.ps1"]) if (!fs.existsSync("dist/agent/"+s)) throw new Error("setup kit is missing "+s);
           const a=fs.readFileSync("agent/agent.mjs","utf8");
           const sec=fs.readFileSync("agent/security.mjs","utf8");
@@ -64,8 +66,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Check runtime syntax on Windows
-        run: npm run check --prefix agent
+      - name: Check runtime and dashboard syntax on Windows
+        run: npm run check --prefix agent; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node --check app.js; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node --check agent-connection-policy.mjs
       - name: Install native-agent dependencies on Windows
         run: npm install --prefix agent
       - name: Install Chromium on Windows
