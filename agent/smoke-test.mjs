@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { isPrivateAddress, safeUrl, redactUrlForDisplay } from './security.mjs';
+import { isPrivateAddress, safeUrl, safeWebSocketUrl, redactUrlForDisplay } from './security.mjs';
 import { actionNeedsApproval } from './approval-policy.mjs';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
@@ -28,6 +28,8 @@ assert.equal(displayedUrl.searchParams.get('state'), '[redacted]', 'OAuth state 
 assert.equal(displayedUrl.searchParams.get('view'), 'grid', 'ordinary query parameters should remain readable');
 
 await assert.rejects(() => safeUrl('http://[::ffff:172.16.0.1]/'), /Private or reserved IP blocked/);
+await assert.rejects(() => safeWebSocketUrl('ws://[::ffff:172.16.0.1]/'), /Private or reserved IP blocked/);
+await assert.rejects(() => safeWebSocketUrl('wss://user:pass@example.com'), /embedded usernames or passwords/);
 assert.equal(actionNeedsApproval({
   action: { tool: 'click', target: 'Save changes' }, mode: 'browser',
   clickInfo: { tag: 'a', href: 'https://example.com/save', text: 'Save changes', formAssociated: false, submitType: false, disabled: false }
