@@ -1,0 +1,21 @@
+{
+  "name": "promptpilot-local-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local Ollama + Playwright/Chromium + open-source desktop input.",
+  "scripts": {
+    "start": "node agent.mjs",
+    "start:mcp": "node mcp-bridge.mjs",
+    "check": "node --check agent.mjs && node --check mcp-bridge.mjs",
+    "test:smoke": "node smoke-test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.6",
+    "playwright": "^1.58.2",
+    "screenshot-desktop": "^1.15.1"
+  }
+}
