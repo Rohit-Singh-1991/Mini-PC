@@ -128,3 +128,21 @@ export function redactUrlForDisplay(value) {
   if (sensitiveKey.test(url.hash)) url.hash = '#[redacted]';
   return url.toString();
 }
+
+
+/** Validate a WebSocket URL using the same public-address rules as HTTP(S) pages. */
+export async function safeWebSocketUrl(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('Enter a valid ws:// or wss:// URL.');
+  }
+  if (!['ws:', 'wss:'].includes(url.protocol)) {
+    throw new Error('Only public ws:// and wss:// destinations are allowed.');
+  }
+  const httpUrl = new URL(url.href);
+  httpUrl.protocol = url.protocol === 'ws:' ? 'http:' : 'https:';
+  await safeUrl(httpUrl.href);
+  return url;
+}
