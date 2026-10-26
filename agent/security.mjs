@@ -59,10 +59,10 @@ export function isPrivateAddress(value) {
   if (w.slice(0, 6).every(x => x === 0)) return true;
 
   // Unique-local, link-local and multicast ranges.
-  if ((a & 0xfe00) === 0xfc00 || (a & 0xffc0) === 0xfe80 || (a & 0xff00) === 0xff00) return true;
+  if ((a & 0xfe00) === 0xfc00 || (a & 0xffc0) === 0xfe80 || (a & 0xffc0) === 0xfec0 || (a & 0xff00) === 0xff00) return true;
 
   // IPv6 transition, protocol-assignment, documentation and translation ranges.
-  if ((a === 0x2001 && (b <= 0x01ff || b === 0x0db8)) || a === 0x2002) return true;
+  if ((a === 0x2001 && (b <= 0x01ff || b === 0x0002 || b === 0x0db8)) || a === 0x2002) return true;
   if (a === 0x3fff && b <= 0x0fff) return true; // Documentation prefix 3fff::/20
   if (a === 0x0100 && b === 0 && c === 0 && d === 0) return true; // Discard-only 100::/64
   if (a === 0x0064 && b === 0xff9b && (c === 0 || c === 1)) return true; // NAT64
