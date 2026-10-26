@@ -43,11 +43,12 @@ Source: "..\agent\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs crea
 Source: "install-agent.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "start-agent.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "start-tunnel.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "open-dashboard.bat"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Start PromptPilot Agent"; Filename: "{app}\start-agent.bat"; WorkingDir: "{app}"
 Name: "{group}\Start PromptPilot Tunnel"; Filename: "{app}\start-tunnel.bat"; WorkingDir: "{app}"
-Name: "{group}\Open PromptPilot Dashboard"; Filename: "https://inapp-pc.vercel.app"; Flags: shellexec
+Name: "{group}\Open PromptPilot Dashboard"; Filename: "{app}\open-dashboard.bat"; WorkingDir: "{app}"
 Name: "{autodesktop}\PromptPilot Agent"; Filename: "{app}\start-agent.bat"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Code]
