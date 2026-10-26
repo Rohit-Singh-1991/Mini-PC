@@ -36,3 +36,11 @@ The smoke suite uses mock Ollama and a real Playwright Chromium session. It does
 The dashboard is hosted, but browser automation, Ollama, screenshots, and desktop actions execute on your PC. This is not a permanent cloud PC. Keep the runner and tunnel open only while using them; the temporary tunnel URL and bearer token are secrets. Start with harmless public websites and actively supervise PC control. Do not leave banking, password-manager, or private messaging screens unattended. Passwords, OTPs, CAPTCHAs and recovery/payment codes remain manual-only.
 
 See [agent/README.md](agent/README.md) for detailed setup, MCP bridge, smoke-test, and troubleshooting instructions.
+
+## Code signing policy
+
+**Current status: the published Windows installer is unsigned.** The installer must not be described as Authenticode-signed until the release pipeline verifies a valid signature and trusted timestamp. SignPath Foundation approval and configuration are still pending; the current release is not signed.
+
+Only after approval, the planned attribution is: “Free code signing provided by SignPath.io, certificate by SignPath Foundation”. The repository owner is the committer, reviewer and signing approver for this solo-maintained project; each release-signing request will be manually reviewed. See the [full code signing policy](code-signing.html) and [SignPath setup guide](docs/CODE-SIGNING.md).
+
+Privacy statement: This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. Browser automation and desktop actions run locally, with a tunnel used only when the user explicitly connects the dashboard.
