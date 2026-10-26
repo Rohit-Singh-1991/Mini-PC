@@ -37,12 +37,12 @@ jobs:
           const script=h.match(/<script>([\s\S]*?)<\/script>/);
           if (!script) throw new Error("dashboard script is missing");
           new Function(script[1]);
-          for (const s of ["prompt","agentUrl","agentToken","previewImage","allowPC","/api/run","/api/approve","/api/pc/click","/agent/agent.mjs","/agent/mcp-bridge.mjs"]) if (!h.includes(s)) throw new Error("missing UI element or route: "+s);
+          for (const s of ["prompt","agentUrl","agentToken","previewImage","allowPC","sessionStorage","URL security module","Approval policy","/api/run","/api/approve","/api/pc/click","/agent/agent.mjs","/agent/mcp-bridge.mjs"]) if (!h.includes(s)) throw new Error("missing UI element or route: "+s);
           const a=fs.readFileSync("agent/agent.mjs","utf8");
           const sec=fs.readFileSync("agent/security.mjs","utf8");
           const ap=fs.readFileSync("agent/approval-policy.mjs","utf8");
           for (const s of ["crypto.timingSafeEqual","/api/run","/api/approve","/api/stop","/api/pc/authorize","await safeUrl(u)","OLLAMA_URL","otp|captcha|verification","pending.resume"]) if (!a.includes(s)) throw new Error("missing safety/runtime feature: "+s);
-          for (const s of ["dns.lookup","isPrivateAddress","::ffff","embedded usernames or passwords","Private or reserved IP"]) if (!sec.includes(s)) throw new Error("missing URL validation feature: "+s);
+          for (const s of ["dns.lookup","isPrivateAddress","::ffff","embedded usernames or passwords","Private or reserved IP","redactUrlForDisplay"]) if (!sec.includes(s)) throw new Error("missing URL validation feature: "+s);
           for (const s of ["actionNeedsApproval","formAssociated","submitType","mode ==="]) if (!ap.includes(s)) throw new Error("missing approval policy: "+s);
           const build=fs.readFileSync("build.mjs","utf8");
           for (const s of ["security.mjs","approval-policy.mjs"]) if (!build.includes(s)) throw new Error("setup bundle omits "+s);
@@ -50,3 +50,20 @@ jobs:
           for (const s of ["$PSScriptRoot","Copy-Item","npm install","npx playwright install chromium","ollama pull qwen2.5:3b"]) if (!installer.includes(s)) throw new Error("missing installer step: "+s);
           console.log("Dashboard routes, agent safety controls and installer present");
           '
+  windows-sanity:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check runtime syntax on Windows
+        run: npm run check --prefix agent
+      - name: Install native-agent dependencies on Windows
+        run: npm install --prefix agent
+      - name: Install Chromium on Windows
+        run: npx playwright install chromium
+      - name: Exercise browser and safety smoke tests on Windows
+        run: npm run test:smoke --prefix agent
+
