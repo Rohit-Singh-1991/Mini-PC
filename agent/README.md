@@ -51,17 +51,17 @@ The experimental MCP bridge exposes a small set of authenticated tools so a comp
 4. In a compatible MCP client, configure the remote MCP URL as `https://YOUR-TEMPORARY-HOST.trycloudflare.com/mcp` and use bearer-token authentication with the same token printed by the local agent. Never publish the token or tunnel URL.
 5. If the client cannot configure custom remote MCP servers, continue using the hosted PromptPilot dashboard instead.
 
-Available tools include browser snapshot, public-site navigation, browser screenshot, a short local-Ollama browser task (up to four steps), stop, explicit desktop-control authorization, desktop screenshot, a short supervised local-Ollama PC task (up to four steps), and PC-control revocation. There is no shell-command tool. PC tasks must be explicitly confirmed per invocation; one-shot PC permission is revoked after the task. Sensitive/irreversible actions pause for approval in the dashboard. Desktop screenshots may contain private information. This bridge is experimental and must be tested with harmless tasks first.
+Available tools include browser snapshot, public-site navigation, browser screenshot, a short local-Ollama browser task (up to four steps), stop, explicit desktop-control authorization, desktop screenshot, a short supervised local-Ollama PC task (up to four steps), and PC-control revocation. There is no shell-command tool. PC tasks must be explicitly confirmed per invocation. Every desktop click, key press and typing action pauses for approval in the dashboard. Approve within 90 seconds; pending approvals expire and PC permission is revoked. The MCP bridge revokes one-shot PC permission when the task completes or is rejected. Desktop screenshots may contain private information. This bridge is experimental and must be tested with harmless tasks first.
 
 ## Verify the local agent
 
-Run `npm run test:smoke` from the agent folder. The smoke test uses a mock Ollama server and a real Playwright Chromium session to verify health/model discovery, bearer-token authentication, private-network URL blocking, navigation, screenshot generation, page title and visible text, and Ollama HTTP-error diagnostics. This does not replace a test with your installed Ollama model or prove that your PC is connected to the hosted dashboard.
+Run `npm run check` and `npm run test:smoke` from the agent folder. The smoke suite also covers IPv4/IPv6 special-use ranges, mapped IPv4 addresses, embedded URL credentials and approval-policy cases. The smoke test uses a mock Ollama server and a real Playwright Chromium session to verify health/model discovery, bearer-token authentication, private-network URL blocking, navigation, screenshot generation, page title and visible text, and Ollama HTTP-error diagnostics. This does not replace a test with your installed Ollama model or prove that your PC is connected to the hosted dashboard.
 
 Check JavaScript syntax with `npm run check`.
 
 ## Browser mode
 
-Write a prompt such as "Open https://example.com and summarize the page". Ollama plans one action at a time, Playwright performs it, and the screenshot appears in the dashboard. Private/local IP destinations are blocked. Passwords, OTPs, CAPTCHA, recovery/payment codes are manual only. Submit, purchase, payment, deletion, consent, and similar actions pause for approval. Verify the result on the actual website.
+Write a prompt such as "Open https://example.com and summarize the page". Ollama plans one action at a time, Playwright performs it, and the screenshot appears in the dashboard. Private/local IP destinations are blocked. Passwords, OTPs, CAPTCHA, recovery/payment codes are manual only. Browser buttons, form controls, ambiguous links, and risky destinations pause for approval before execution. Approval resumes the remaining task steps. Pending approvals expire after 90 seconds; reject or stop the task when the action is not appropriate. Verify the result on the actual website.
 
 ## PC mode
 
@@ -71,7 +71,8 @@ Select PC control, tick the explicit permission, and actively supervise. The loc
 
 - AI runs through local Ollama; no hosted AI API is used.
 - Prompt/action logs do not store typed field values.
-- The tunnel forwards to your PC; anyone with both its URL and token could control the exposed capabilities.
+- The tunnel forwards to your PC; anyone with both its URL and bearer token could use the exposed capabilities. Do not put the token in screenshots, public prompts, source code or shared logs.
+- The runner checks every browser request and redirect against public-IP rules. This reduces SSRF risk but is not a substitute for supervising the session or keeping software updated.
 - To revoke, stop the tunnel and agent. Delete `.promptpilot-token` to rotate the local token.
 - If model is missing run `ollama pull qwen2.5:3b`; for PC mode run `ollama pull llava:7b`.
 - If Chromium is missing run `npx playwright install chromium`.
