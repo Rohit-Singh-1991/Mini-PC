@@ -9,7 +9,7 @@ A free, local-first dashboard for an in-app browser and supervised desktop PC co
 - Uses Ollama running on your PC for prompt-driven planning; no hosted AI API is required.
 - Provides optional desktop screenshot/mouse/keyboard control after explicit permission.
 - Includes a bearer-token authenticated experimental MCP bridge for compatible clients.
-- Blocks private/local network destinations and pauses sensitive or irreversible actions for user approval.
+- Blocks private/local network destinations, rechecks browser subrequests and redirects, and pauses potentially consequential browser/desktop actions for explicit approval.
 
 ## Windows setup
 Requirements: Node.js 22+, Ollama, and the Windows PC you want to control.
@@ -31,7 +31,7 @@ The dashboard is hosted on Vercel, but browser automation, Ollama, screenshots, 
 ## In-app browser and PC-control behavior
 - Browser mode uses Playwright/Chromium to navigate and interact with pages.
 - PC mode needs a local vision model such as llava:7b, explicit session authorization, and active supervision.
-- Passwords, OTPs, CAPTCHAs and recovery/payment codes are manual-only.
+- Passwords, OTPs, CAPTCHAs and recovery/payment codes are manual-only. Browser form controls and desktop interactions may pause for explicit user approval.
 - Never leave banking, password-manager or private messaging screens unattended; test first on harmless public sites.
 
 ## Optional MCP bridge
