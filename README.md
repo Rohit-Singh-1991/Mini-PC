@@ -1,4 +1,4 @@
-# InAppPC — PromptPilot
+# Mini-PC — PromptPilot
 
 A free, local-first dashboard for an in-app browser and supervised desktop PC control.
 
