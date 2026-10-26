@@ -1,4 +1,4 @@
-name: Build and publish Windows installer
+name: Build and Authenticode-sign Windows installer
 
 on:
   push:
@@ -8,13 +8,14 @@ on:
       - "installer/**"
       - ".github/workflows/windows-installer.yml"
       - "README.md"
+      - "docs/CODE-SIGNING.md"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build-installer:
+  build-sign-publish:
     runs-on: windows-latest
     steps:
       - name: Check out source
@@ -28,45 +29,109 @@ jobs:
         shell: pwsh
         run: |
           $iscc = Join-Path "${env:ProgramFiles(x86)}" "Inno Setup 6\ISCC.exe"
-          if (!(Test-Path $iscc)) {
-            throw "Inno Setup compiler not found at $iscc"
-          }
+          if (!(Test-Path $iscc)) { throw "Inno Setup compiler not found at $iscc" }
           $output = Join-Path $env:GITHUB_WORKSPACE "dist-installer"
           New-Item -ItemType Directory -Force -Path $output | Out-Null
           & $iscc (Join-Path $env:GITHUB_WORKSPACE "installer\PromptPilotSetup.iss") "/O$output"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Inno Setup failed with exit code $LASTEXITCODE"
-          }
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
           $setup = Join-Path $output "PromptPilotSetup.exe"
-          if (!(Test-Path $setup)) {
-            throw "PromptPilotSetup.exe was not produced."
-          }
-          $hash = (Get-FileHash $setup -Algorithm SHA256).Hash
-          "Installer SHA-256: $hash" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          if (!(Test-Path $setup)) { throw "PromptPilotSetup.exe was not produced." }
           Get-Item $setup | Format-List Name,Length,LastWriteTime
 
-      - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: PromptPilot-Windows-Installer
-          path: dist-installer/PromptPilotSetup.exe
-          if-no-files-found: error
-          retention-days: 14
+      - name: Check SignPath configuration
+        id: signing-config
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+        run: |
+          $missing = @()
+          foreach ($name in @("SIGNPATH_API_TOKEN","SIGNPATH_ORGANIZATION_ID","SIGNPATH_PROJECT_SLUG","SIGNPATH_SIGNING_POLICY_SLUG")) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { $missing += $name }
+          }
+          if ($missing.Count -gt 0) {
+            "ready=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "## Authenticode signing is not configured" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            "The setup wizard compiled, but no public release was published because trusted signing is not configured. Complete the steps in [docs/CODE-SIGNING.md](https://github.com/Rohit-Singh-1991/Mini-PC/blob/main/docs/CODE-SIGNING.md)." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            Write-Warning ("Missing GitHub Actions secrets/variables: " + ($missing -join ", "))
+          } else {
+            "ready=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "SignPath credentials and project variables are configured." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
 
-      - name: Publish latest Windows installer
-        if: github.ref == 'refs/heads/main'
+      - name: Upload unsigned candidate for SignPath
+        if: steps.signing-config.outputs.ready == 'true'
+        id: upload-unsigned-artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: PromptPilot-Windows-Installer-Unsigned
+          path: dist-installer/PromptPilotSetup.exe
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Submit Authenticode signing request
+        if: steps.signing-config.outputs.ready == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-installer
+
+      - name: Verify Authenticode signature and timestamp
+        if: steps.signing-config.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          $signedFile = Get-ChildItem -Path "signed-installer" -Filter "PromptPilotSetup.exe" -File -Recurse | Select-Object -First 1
+          if (!$signedFile) { throw "SignPath completed but the signed PromptPilotSetup.exe was not found." }
+          $signature = Get-AuthenticodeSignature -FilePath $signedFile.FullName
+          if ($signature.Status -ne "Valid") {
+            throw "Authenticode signature verification failed: $($signature.Status) $($signature.StatusMessage)"
+          }
+          if (!$signature.SignerCertificate) { throw "The signed installer has no signer certificate." }
+          if (!$signature.TimeStamperCertificate) { throw "The signature has no trusted timestamp; refusing release." }
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE "dist-installer-signed"
+          New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+          $releaseFile = Join-Path $releaseDir "PromptPilotSetup.exe"
+          Copy-Item $signedFile.FullName $releaseFile -Force
+          $hash = (Get-FileHash $releaseFile -Algorithm SHA256).Hash
+          "## Authenticode verification passed" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Signer: $($signature.SignerCertificate.Subject)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Timestamp certificate: $($signature.TimeStamperCertificate.Subject)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "SHA-256: $hash" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Get-AuthenticodeSignature -FilePath $releaseFile | Format-List Status,StatusMessage,SignerCertificate,TimeStamperCertificate
+
+      - name: Upload verified signed installer artifact
+        if: steps.signing-config.outputs.ready == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: PromptPilot-Windows-Installer-Signed
+          path: dist-installer-signed/PromptPilotSetup.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish signed installer as latest release
+        if: steps.signing-config.outputs.ready == 'true' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: installer-latest
           target_commitish: ${{ github.sha }}
-          name: PromptPilot Windows Installer (latest)
+          name: PromptPilot Windows Installer (Authenticode-signed)
           body: |
-            Rolling Windows installer for PromptPilot, built from the repository's main branch.
+            Authenticode-signed Windows installer for PromptPilot.
 
-            Download PromptPilotSetup.exe to open the Windows setup wizard. Choose Full install for browser automation plus PC-control vision, or Browser automation only to skip the extra vision model.
+            This asset is published only after SignPath has completed signing and Windows reports a valid Authenticode signature with a trusted timestamp. Verify the signature with PowerShell:
+            Get-AuthenticodeSignature .\PromptPilotSetup.exe | Format-List Status,SignerCertificate,TimeStamperCertificate
 
+            Choose Full install for browser automation plus PC-control vision, or Browser automation only to skip the extra vision model.
             After setup, launch Start PromptPilot Agent and Start PromptPilot Tunnel from the Start Menu. The local agent and all desktop/browser actions run on your own PC. The temporary tunnel URL and bearer token are secrets.
-          files: dist-installer/PromptPilotSetup.exe
+          files: dist-installer-signed/PromptPilotSetup.exe
           fail_on_unmatched_files: true
           overwrite_files: true
           make_latest: true
