@@ -109,3 +109,22 @@ export async function safeUrl(value) {
   }
   return url;
 }
+
+
+/** Redact OAuth/session credentials before exposing any URL in the dashboard or activity log. */
+export function redactUrlForDisplay(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return '';
+  }
+  url.username = '';
+  url.password = '';
+  const sensitiveKey = /(token|access_token|refresh_token|id_token|auth|authorization|password|secret|client_secret|code|session|signature|(^|[_-])sig($|[_-])|api[_-]?key|jwt|state)/i;
+  for (const key of [...url.searchParams.keys()]) {
+    if (sensitiveKey.test(key)) url.searchParams.set(key, '[redacted]');
+  }
+  if (sensitiveKey.test(url.hash)) url.hash = '#[redacted]';
+  return url.toString();
+}
