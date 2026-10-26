@@ -1,0 +1,46 @@
+name: InAppPC agent sanity checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  sanity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check agent syntax
+        run: node --check agent/agent.mjs
+      - name: Validate local-agent package metadata
+        run: node -e "const p=require('./agent/package.json'); if(p.engines.node !== '>=22') process.exit(1); console.log(p.name, p.version)"
+      - name: Build hosted dashboard and download kit
+        run: npm run build
+      - name: Install open-source local-agent dependencies
+        run: npm install --prefix agent
+      - name: Install Chromium for smoke test
+        working-directory: agent
+        run: npx playwright install chromium
+      - name: Exercise local API, MCP bridge and browser flow with mock Ollama
+        working-directory: agent
+        run: npm run test:smoke
+      - name: Verify dashboard and safety controls
+        run: |
+          node --input-type=module -e '
+          import fs from "node:fs";
+          const h=fs.readFileSync("index.html","utf8");
+          const script=h.match(/<script>([\s\S]*?)<\/script>/);
+          if (!script) throw new Error("dashboard script is missing");
+          new Function(script[1]);
+          for (const s of ["prompt","agentUrl","agentToken","previewImage","allowPC","/api/run","/api/approve","/api/pc/click","/agent/agent.mjs","/agent/mcp-bridge.mjs"]) if (!h.includes(s)) throw new Error("missing UI element or route: "+s);
+          const a=fs.readFileSync("agent/agent.mjs","utf8");
+          for (const s of ["crypto.timingSafeEqual","/api/run","/api/approve","/api/stop","/api/pc/authorize","Local/private network hosts are blocked","await dns.lookup(h,{all:true,verbatim:true})","OLLAMA_URL","otp|captcha|verification"]) if (!a.includes(s)) throw new Error("missing safety/runtime feature: "+s);
+          const installer=fs.readFileSync("agent/install.ps1","utf8");
+          for (const s of ["$PSScriptRoot","Copy-Item","npm install","npx playwright install chromium","ollama pull qwen2.5:3b"]) if (!installer.includes(s)) throw new Error("missing installer step: "+s);
+          console.log("Dashboard routes, agent safety controls and installer present");
+          '
