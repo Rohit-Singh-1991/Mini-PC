@@ -1,7 +1,43 @@
 import assert from 'node:assert/strict';
+import { isPrivateAddress, safeUrl } from './security.mjs';
+import { actionNeedsApproval } from './approval-policy.mjs';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
+
+const blockedAddresses = [
+  '0.0.0.0', '10.1.2.3', '100.64.0.1', '127.0.0.1', '169.254.169.254',
+  '172.16.0.1', '172.31.255.254', '192.168.1.10', '198.18.0.1',
+  '198.51.100.7', '203.0.113.9', '224.0.0.1', '::', '::1',
+  'fc00::1', 'fd12:3456::1', 'fe80::1', 'ff02::1', '2001:db8::1',
+  '2002:0a00:0001::1', '::ffff:172.16.0.1', '::ffff:169.254.169.254',
+  '64:ff9b::a9fe:a9fe'
+];
+for (const ip of blockedAddresses) {
+  assert.equal(isPrivateAddress(ip), true, 'must block non-public address ' + ip);
+}
+for (const ip of ['8.8.8.8', '1.1.1.1', '2606:4700:4700::1111', '2001:4860:4860::8888']) {
+  assert.equal(isPrivateAddress(ip), false, 'must allow public address ' + ip);
+}
+await assert.rejects(() => safeUrl('https://user:pass@example.com'), /embedded usernames or passwords/);
+await assert.rejects(() => safeUrl('http://[::ffff:172.16.0.1]/'), /Private or reserved IP blocked/);
+assert.equal(actionNeedsApproval({
+  action: { tool: 'click', target: 'Save changes' }, mode: 'browser',
+  clickInfo: { tag: 'a', href: 'https://example.com/save', text: 'Save changes', formAssociated: false, submitType: false, disabled: false }
+}), true, 'risky link must pause for approval');
+assert.equal(actionNeedsApproval({
+  action: { tool: 'click', target: 'Open article' }, mode: 'browser',
+  clickInfo: { tag: 'a', href: 'https://example.com/article', text: 'Open article', formAssociated: false, submitType: false, disabled: false }
+}), false, 'ordinary public navigation link can proceed');
+assert.equal(actionNeedsApproval({
+  action: { tool: 'click', target: 'Continue' }, mode: 'browser',
+  clickInfo: { tag: 'button', text: 'Continue', formAssociated: true, submitType: true, disabled: false }
+}), true, 'button/form actions must pause for approval');
+assert.equal(actionNeedsApproval({ action: { tool: 'pc_click' }, mode: 'pc' }), true, 'desktop actions must pause for approval');
+
+console.log('PASS IP classification: private, special-use, mapped IPv4 and public IPv6 cases');
+console.log('PASS unsafe URL credential rejection');
+console.log('PASS conservative browser/desktop action approval policy');
 
 const host='127.0.0.1';
 const ollamaPort=14351;
