@@ -3,11 +3,11 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { safeUrl, redactUrlForDisplay } from './security.mjs';
+import { safeUrl, safeWebSocketUrl, redactUrlForDisplay } from './security.mjs';
 import { actionNeedsApproval } from './approval-policy.mjs';
 const PORT=Number(process.env.PORT||3920),HOST='127.0.0.1',TOKEN_FILE=path.join(process.cwd(),'.promptpilot-token'),OLLAMA=(process.env.OLLAMA_URL||'http://127.0.0.1:11434').replace(/\/+$/,''),TEXT_MODEL=process.env.OLLAMA_MODEL||'qwen2.5:3b',VISION_MODEL=process.env.OLLAMA_VISION_MODEL||'llava:7b';
 const ORIGINS=new Set((process.env.PROMPTPILOT_ALLOWED_ORIGINS||'https://inapp-pc.vercel.app,https://inapp-pc-newdivide4-8630.vercel.app,http://localhost:5173').split(',').map(x=>x.trim()).filter(Boolean));
-const RISKY=/\b(submit|pay|payment|purchase|buy now|delete|remove|accept|consent|confirm|finalize|register now|apply now|send now|transfer|sign|authorize|approve|book now|otp|captcha|verification|two.factor|mfa)\b/i,SENSITIVE=/\b(password|passcode|otp|one.?time.?password|verification code|captcha|cvv|cvc|card number|bank account|pin code|security code|recovery code)\b/i;
+const RISKY=/\b(submit|pay|payment|purchase|buy now|delete|remove|accept|consent|confirm|finalize|register now|apply now|send now|transfer|sign|authorize|approve|book now|otp|captcha|verification|two.factor|mfa)\b/i,SENSITIVE=/\b(password|passcode|otp|one.?time.?password|verification code|captcha|cvv|cvc|card number|bank account|pin code|security code|recovery code|security question|auth.?code|access.?token|refresh.?token|client.?secret|api.?key|private.?key|secret.?key|social.?security|ssn|routing number|iban|swift code)\b/i;
 let browser,context,page,currentUrl='',currentMode='browser',busy=false,stopped=false,pcPermission=false,pending=null,lastSteps=[],lastResult=null,lastActivity=new Date().toISOString();
 function makeToken(){if(process.env.PROMPTPILOT_TOKEN)return process.env.PROMPTPILOT_TOKEN;try{const s=fs.readFileSync(TOKEN_FILE,'utf8').trim();if(s.length>=40)return s}catch{}const s=crypto.randomBytes(32).toString('hex');fs.writeFileSync(TOKEN_FILE,s+os.EOL,{mode:0o600});return s}
 const TOKEN=makeToken();
@@ -15,8 +15,32 @@ function send(res,code,data,origin){res.writeHead(code,{'Content-Type':'applicat
 function auth(req){const h=req.headers.authorization||'',t=h.startsWith('Bearer ')?h.slice(7):'';return !!t&&t.length===TOKEN.length&&crypto.timingSafeEqual(Buffer.from(t),Buffer.from(TOKEN))}
 async function parse(req){let b='';for await(const chunk of req){b+=chunk;if(Buffer.byteLength(b)>1048576)throw new Error('Request too large')}if(!b)return {};try{return JSON.parse(b)}catch{throw new Error('Invalid JSON')}}
 async function ollamaStatus(){try{const r=await fetch(OLLAMA+'/api/tags',{signal:AbortSignal.timeout(2500)});if(!r.ok)return{reachable:false,models:[],text:false,vision:false,httpStatus:r.status,error:'Ollama endpoint returned HTTP '+r.status+' at '+OLLAMA+'/api/tags. Verify Ollama is running and OLLAMA_URL points to its base URL.'};const d=await r.json(),models=(d.models||[]).map(x=>x.name);return{reachable:true,models,text:models.some(n=>n===TEXT_MODEL||n.startsWith(TEXT_MODEL+':')),vision:models.some(n=>n===VISION_MODEL||n.startsWith(VISION_MODEL)),httpStatus:r.status,error:null}}catch{return{reachable:false,models:[],text:false,vision:false,error:'Cannot reach '+OLLAMA+'/api/tags. Start Ollama and check OLLAMA_URL.'}}}
-async function getPage(){if(!browser||!browser.isConnected())browser=await(await import('playwright')).chromium.launch({headless:true});if(!context){context=await browser.newContext({viewport:{width:1365,height:850},acceptDownloads:false});await context.route('**/*',async r=>{const u=r.request().url();if(u.startsWith('about:')||u.startsWith('data:')||u.startsWith('blob:'))return r.continue();try{await safeUrl(u);return r.continue()}catch{return r.abort('blockedbyclient')}})}if(!page||page.isClosed())page=await context.newPage();return page}
-async function snapshot(){const p=await getPage(),d=await p.evaluate(()=>{const clean=s=>String(s||'').replace(/\s+/g,' ').trim();const controls=[...document.querySelectorAll('input,textarea,select,button,a,[role="button"]')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'}).slice(0,90).map(e=>{const labels=e.labels?[...e.labels].map(l=>clean(l.innerText)).join(' ').slice(0,140):'',type=clean(e.getAttribute('type')||e.tagName.toLowerCase()).slice(0,140),label=clean([labels,e.getAttribute('aria-label'),e.getAttribute('name'),e.id,e.getAttribute('placeholder'),e.innerText].filter(Boolean).join(' | ')).slice(0,140),secret=/password|passcode|otp|verification code|captcha|cvv|cvc|card number|bank account|security code|recovery code|security question|auth.?code/i.test(label+' '+type+' '+clean(e.getAttribute('autocomplete')||''));return{tag:e.tagName.toLowerCase(),type,label,value:secret?'[sensitive; user enters manually]':(['INPUT','TEXTAREA','SELECT'].includes(e.tagName)?clean(e.value).slice(0,500):''),disabled:!!e.disabled}});return{title:document.title,body:clean(document.body?.innerText||'').slice(0,8000),controls}});currentUrl=redactUrlForDisplay(p.url());return{url:currentUrl,...d}}
+async function getPage(){
+ if(!browser||!browser.isConnected())browser=await(await import('playwright')).chromium.launch({headless:true});
+ if(!context){
+  context=await browser.newContext({viewport:{width:1365,height:850},acceptDownloads:false});
+  await context.route('**/*',async r=>{
+   const u=r.request().url();
+   if(u.startsWith('about:')||u.startsWith('data:')||u.startsWith('blob:'))return r.continue();
+   try{await safeUrl(u);return r.continue()}catch{return r.abort('blockedbyclient')}
+  });
+  if(typeof context.routeWebSocket==='function'){
+   await context.routeWebSocket('**/*',async route=>{
+    try{
+     await safeWebSocketUrl(route.url());
+     const server=await route.connectToServer();
+     route.onMessage(message=>server.send(message));
+     server.onMessage(message=>route.send(message));
+    }catch{
+     try{route.close({code:1008,reason:'Blocked by local public-URL policy'})}catch{}
+    }
+   });
+  }
+ }
+ if(!page||page.isClosed())page=await context.newPage();
+ return page
+}
+async function snapshot(){const p=await getPage(),d=await p.evaluate(()=>{const clean=s=>String(s||'').replace(/\s+/g,' ').trim();const controls=[...document.querySelectorAll('input,textarea,select,button,a,[role="button"]')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'}).slice(0,90).map(e=>{const labels=e.labels?[...e.labels].map(l=>clean(l.innerText)).join(' ').slice(0,140):'',type=clean(e.getAttribute('type')||e.tagName.toLowerCase()).slice(0,140),label=clean([labels,e.getAttribute('aria-label'),e.getAttribute('name'),e.id,e.getAttribute('placeholder'),e.innerText].filter(Boolean).join(' | ')).slice(0,140),secret=/password|passcode|otp|verification code|captcha|cvv|cvc|card number|bank account|security code|recovery code|security question|auth.?code|access.?token|refresh.?token|client.?secret|api.?key|private.?key|secret.?key|social.?security|ssn|routing number|iban|swift code/i.test(label+' '+type+' '+clean(e.getAttribute('autocomplete')||''));return{tag:e.tagName.toLowerCase(),type,label,value:secret?'[sensitive; user enters manually]':(['INPUT','TEXTAREA','SELECT'].includes(e.tagName)?clean(e.value).slice(0,500):''),disabled:!!e.disabled}});return{title:document.title,body:clean(document.body?.innerText||'').slice(0,8000),controls}});currentUrl=redactUrlForDisplay(p.url());return{url:currentUrl,...d}}
 async function browserShot(){const p=await getPage(),b=await p.screenshot({type:'jpeg',quality:65,timeout:8000}),v=p.viewportSize()||{width:1365,height:850};currentUrl=redactUrlForDisplay(p.url());return{mime:'image/jpeg',base64:b.toString('base64'),width:v.width,height:v.height,url:currentUrl}}
 async function desktopShot(){if(!pcPermission)throw new Error('PC control permission is off. Enable it for the run first.');const m=await import('@nut-tree-fork/nut-js'),n=m.mouse?m:m.default,sm=await import('screenshot-desktop'),shot=sm.default||sm,b=await shot({format:'jpg'});return{mime:'image/jpeg',base64:Buffer.from(b).toString('base64'),width:await n.screen.width(),height:await n.screen.height(),url:'Desktop'}}
 async function takeShot(mode=currentMode){return mode==='pc'?desktopShot():browserShot()}
@@ -71,6 +95,7 @@ async function runPrompt(prompt,mode,limit,options={}){
   for(let i=startStep;i<limit;i++){
    if(stopped){message='Stopped by user.';break}
    const a=await plan(prompt,mode,prev,i+1);
+   if(stopped){message='Stopped by user before the next action.';break}
    if(a.tool==='done'){message=a.summary||'Local model finished.';break}
    const r=await execute(a,mode);
    if(r.needsApproval){
