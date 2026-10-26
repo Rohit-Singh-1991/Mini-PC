@@ -14,6 +14,8 @@ const downloadableFiles = [
   'README.md',
   'agent.mjs',
   'mcp-bridge.mjs',
+  'security.mjs',
+  'approval-policy.mjs',
   'package.json',
   'install.ps1',
   'smoke-test.mjs',
