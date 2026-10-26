@@ -1,4 +1,4 @@
-name: InAppPC agent sanity checks
+name: Mini-PC agent sanity checks
 
 on:
   pull_request:
