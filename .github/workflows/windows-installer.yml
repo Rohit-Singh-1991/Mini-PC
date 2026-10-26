@@ -59,11 +59,52 @@ jobs:
             "ready=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
             "## Authenticode signing is not configured" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
             "The setup wizard compiled, but no public release was published because trusted signing is not configured. Complete the steps in [docs/CODE-SIGNING.md](https://github.com/Rohit-Singh-1991/Mini-PC/blob/main/docs/CODE-SIGNING.md)." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-            Write-Error ("Missing GitHub Actions secrets/variables: " + ($missing -join ", ") + ". Trusted signing is required before publishing. Follow docs/CODE-SIGNING.md.")
+            Write-Warning ("Missing GitHub Actions secrets/variables: " + ($missing -join ", ") + ". Trusted signing is required before publishing. Follow docs/CODE-SIGNING.md.")
           } else {
             "ready=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
             "SignPath credentials and project variables are configured." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           }
+
+      - name: Mark existing release as unsigned while signing is pending
+        if: steps.signing-config.outputs.ready != 'true' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $releaseJson = gh release view installer-latest --repo $env:GITHUB_REPOSITORY --json assets 2>$null
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($releaseJson)) {
+            Write-Warning "No existing installer-latest release found to label."
+            exit 0
+          }
+          $release = $releaseJson | ConvertFrom-Json
+          $hasInstaller = @($release.assets | Where-Object { $_.name -eq "PromptPilotSetup.exe" }).Count -gt 0
+          $notes = @'
+          # PromptPilot Windows installer — UNSIGNED
+
+          **The current executable is NOT Authenticode-signed.** SignPath Foundation acceptance and trusted signing configuration are still pending. Do not treat this download as a trusted-publisher build; Windows may show an unknown-publisher warning.
+
+          The asset is retained as the existing unsigned build for transparency, not represented as signed. A replacement will be published only after the release workflow verifies a valid Authenticode signature and trusted timestamp.
+
+          Code signing policy: https://github.com/Rohit-Singh-1991/Mini-PC/blob/main/code-signing.html
+          Full signing guide: https://github.com/Rohit-Singh-1991/Mini-PC/blob/main/docs/CODE-SIGNING.md
+
+          To verify the current file's hash on Windows:
+          ```powershell
+          Get-FileHash .\PromptPilotSetup.exe -Algorithm SHA256
+          Get-AuthenticodeSignature .\PromptPilotSetup.exe | Format-List Status,SignerCertificate,TimeStamperCertificate
+          ```
+          '@
+          $notesPath = Join-Path $env:RUNNER_TEMP "unsigned-release-notes.md"
+          Set-Content -Path $notesPath -Value $notes -Encoding utf8
+          gh release edit installer-latest --repo $env:GITHUB_REPOSITORY --title "PromptPilot Windows Installer (UNSIGNED — signing pending)" --notes-file $notesPath
+          if ($LASTEXITCODE -ne 0) { throw "Failed to label the existing release as unsigned." }
+          if ($hasInstaller) { Write-Host "Existing unsigned installer asset remains available but the release is clearly labelled UNSIGNED." }
+
+      - name: Require trusted signing before completing this workflow
+        if: steps.signing-config.outputs.ready != 'true'
+        shell: pwsh
+        run: |
+          throw "Trusted Authenticode signing is not configured. The existing release was labelled UNSIGNED; submit the SignPath Foundation application, configure the SignPath project, then set the GitHub Actions secret and variables listed in docs/CODE-SIGNING.md."
 
       - name: Upload unsigned candidate for SignPath
         if: steps.signing-config.outputs.ready == 'true'
@@ -135,7 +176,7 @@ jobs:
             This asset is published only after SignPath has completed signing and Windows reports a valid Authenticode signature with a trusted timestamp. Verify the signature with PowerShell:
             Get-AuthenticodeSignature .\PromptPilotSetup.exe | Format-List Status,SignerCertificate,TimeStamperCertificate
 
-            Code signing policy: https://inapp-pc.vercel.app/code-signing.html
+            Code signing policy: https://github.com/Rohit-Singh-1991/Mini-PC/blob/main/code-signing.html
             Committers and reviewers: https://github.com/Rohit-Singh-1991
             Signing approver: https://github.com/Rohit-Singh-1991
             Privacy: This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
