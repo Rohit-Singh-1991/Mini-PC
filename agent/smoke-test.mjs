@@ -35,6 +35,12 @@ assert.equal(actionNeedsApproval({
   clickInfo: { tag: 'a', href: 'https://example.com/save', text: 'Save changes', formAssociated: false, submitType: false, disabled: false }
 }), true, 'risky link must pause for approval');
 assert.equal(actionNeedsApproval({
+  action: { tool: 'navigate', url: 'https://example.com/unsubscribe?id=123' }, mode: 'browser'
+}), true, 'potentially state-changing GET navigations must pause');
+assert.equal(actionNeedsApproval({
+  action: { tool: 'fill', target: 'Email', value: 'person@example.com' }, mode: 'browser'
+}), true, 'form data entry must pause for destination/value review');
+assert.equal(actionNeedsApproval({
   action: { tool: 'click', target: 'Open article' }, mode: 'browser',
   clickInfo: { tag: 'a', href: 'https://example.com/article', text: 'Open article', formAssociated: false, submitType: false, disabled: false }
 }), false, 'ordinary public navigation link can proceed');
