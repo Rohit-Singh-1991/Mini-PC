@@ -1,16 +1,9 @@
 
+import { allowedAgentOrigin } from './agent-connection-policy.mjs';
+
 (function(){
 const $=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));const state={mode:'browser',connected:false,events:[],lastUrl:'',runs:0};
 function conn(){try{return JSON.parse(sessionStorage.getItem('promptpilot.connection')||'{}')}catch(e){return {}}}
-function allowedAgentOrigin(raw){
- try{
-  const u=new URL(raw);
-  if(u.username||u.password||u.search||u.hash||(u.pathname&&u.pathname!=='/'))return '';
-  const tunnel=u.protocol==='https:'&&u.hostname!=='trycloudflare.com'&&u.hostname.endsWith('.trycloudflare.com')&&!u.port;
-  const local=u.protocol==='http:'&&['localhost','127.0.0.1'].includes(u.hostname);
-  return tunnel||local?u.origin:'';
- }catch{return ''}
-}
 function save(){const s={url:$('#agentUrl').value.trim().replace(/\/+$/,''),token:$('#agentToken').value.trim()};sessionStorage.setItem('promptpilot.connection',JSON.stringify(s));return s}
 function settings(){const s=conn();if(!s.url||!s.token)throw new Error('Add Agent URL and token in Connection & setup first.');if(!allowedAgentOrigin(s.url))throw new Error('Agent URL must be a Cloudflare Quick Tunnel (https://*.trycloudflare.com) or localhost for development.');return s}
 function notify(m,error){const b=$('#resultBox');b.textContent=m;b.className='result show'+(error?' error':'')}
@@ -36,20 +29,6 @@ async function approve(yes){try{const d=await api('/api/approve',{approved:yes})
 async function navigate(){const url=$('#directUrl').value.trim();if(!url){notify('Enter a URL first.',true);return}try{const d=await api('/api/browser/navigate',{url});state.mode='browser';show(d.screenshot,'browser');if(d.currentUrl)$('#addressBar').textContent=d.currentUrl;notify(d.message||'Browser navigated.');log('Browser navigated',d.currentUrl||url,'↗')}catch(e){notify(e.message,true)}}
 async function clickImage(e,mode){if(!state.connected)return;const img=e.currentTarget;if(!img.naturalWidth||!img.clientWidth)return;const r=img.getBoundingClientRect(),x=Math.round((e.clientX-r.left)*img.naturalWidth/r.width),y=Math.round((e.clientY-r.top)*img.naturalHeight/r.height);try{let d;if(mode==='pc'){if(!$('#allowPC').checked){notify('Enable desktop permission before clicking this view.',true);return}d=await api('/api/pc/click',{x:x,y:y,allowPcControl:true})}else d=await api('/api/browser/click',{x:x,y:y,width:img.naturalWidth,height:img.naturalHeight});if(d.screenshot)show(d.screenshot,mode);if(d.currentUrl)$('#addressBar').textContent=d.currentUrl;log('Manual click','Coordinate '+x+', '+y,'↗')}catch(e){notify(e.message,true)}}
 
-const allowedConnectCases=[
- ['https://random-word.trycloudflare.com',true],
- ['http://localhost:3920',true],
- ['http://127.0.0.1:3920',true],
- ['https://evil.example.com',false],
- ['https://trycloudflare.com',false],
- ['https://user:secret@random-word.trycloudflare.com',false],
- ['https://random-word.trycloudflare.com/agent',false],
- ['https://random-word.trycloudflare.com/?token=secret',false]
-];
-for(const [url,expected] of allowedConnectCases){
- const match=allowedAgentOrigin(url);
- if(Boolean(match)!==expected)throw new Error('Unexpected agent URL policy result for '+url);
-}
 $('#prompt').addEventListener('input',()=>$('#charCount').textContent=$('#prompt').value.length+' / 2,000');$$('.nav button').forEach(b=>b.addEventListener('click',()=>page(b.dataset.page)));$$('.mode').forEach(b=>b.addEventListener('click',()=>{state.mode=b.dataset.mode;$$('.mode').forEach(x=>x.classList.toggle('active',x===b));$('#pcConsent').style.display=state.mode==='pc'?'flex':'none';$('#runBtn').textContent=state.mode==='pc'?'▤ Run PC task locally':'▶ Run prompt locally';page('workspace')}));$$('.example').forEach(b=>b.addEventListener('click',()=>{$('#prompt').value=b.dataset.prompt;$('#charCount').textContent=$('#prompt').value.length+' / 2,000';$('#prompt').focus()}));
 $('#runBtn').addEventListener('click',run);$('#stopBtn').addEventListener('click',async()=>{try{const d=await api('/api/stop',{});notify(d.message);log('Stop requested','Cancellation sent','■')}catch(e){notify(e.message,true)}});$('#approveBtn').addEventListener('click',()=>approve(true));$('#rejectBtn').addEventListener('click',()=>approve(false));$('#saveConnect').addEventListener('click',connect);$('#openSettings').addEventListener('click',()=>page('settings'));$('#setupFromBlank').addEventListener('click',()=>page('settings'));$('#pcSetupBtn').addEventListener('click',()=>page('settings'));$('#refreshPreview').addEventListener('click',()=>refresh(state.mode));$('#browserRefresh').addEventListener('click',()=>refresh('browser'));$('#desktopRefresh').addEventListener('click',()=>refresh('pc'));$('#newBrowser').addEventListener('click',()=>page('browser'));$('#navigateBtn').addEventListener('click',navigate);$('#disconnectBtn').addEventListener('click',()=>{sessionStorage.removeItem('promptpilot.connection');$('#agentUrl').value='';$('#agentToken').value='';status(false,'Disconnected');$('#previewImage').style.display='none';$('#pcImage').style.display='none';$('#placeholder').style.display='block';notify('Connection removed from this browser.')});$('#clearActivity').addEventListener('click',()=>{state.events=[];renderLog()});$('#copyTunnel').addEventListener('click',async()=>{try{await navigator.clipboard.writeText('cloudflared tunnel --url http://localhost:3920');notify('Tunnel command copied.')}catch(e){notify('Run: cloudflared tunnel --url http://localhost:3920')}});$('#previewImage').addEventListener('click',e=>clickImage(e,state.mode==='pc'?'pc':'browser'));$('#pcImage').addEventListener('click',e=>clickImage(e,'pc'));$('#allowPC').addEventListener('change',async()=>{if(state.connected){try{if($('#allowPC').checked){await api('/api/pc/authorize',{allowPcControl:true});state.mode='pc';log('PC permission enabled','Permission explicitly granted to the local agent','✓');notify('PC control enabled for this session. Capturing desktop preview…');await refresh('pc')}else{await api('/api/pc/revoke',{});log('PC permission revoked','Desktop control disabled','✓')}}catch(e){$('#allowPC').checked=false;notify(e.message,true)}}});
 const saved=conn();if(saved.url&&saved.token){$('#agentUrl').value=saved.url;$('#agentToken').value=saved.token;$('#statusLabel').textContent='Agent saved — reconnect'}renderLog();
