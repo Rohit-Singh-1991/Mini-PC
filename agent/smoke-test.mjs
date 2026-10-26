@@ -87,10 +87,13 @@ const mockOllama=http.createServer(async(req,res)=>{
     const body=JSON.parse(raw);
     const input=JSON.parse(body.messages?.[1]?.content||'{}');
     chatCalls++;
+    const goal=String(input.goal||'');
     const action=input.step===1
-      ? (String(input.goal||'').includes('approval-expiry-test')
+      ? (goal.includes('approval-expiry-test')
           ? {tool:'navigate',summary:'Open unsubscribe page for expiry test',url:'https://example.com/unsubscribe'}
-          : {tool:'navigate',summary:'Open public smoke-test page',url:'https://example.com'})
+          : goal.includes('approval-resume-test')
+            ? {tool:'navigate',summary:'Open save page for approval-resume test',url:'https://example.com/save'}
+            : {tool:'navigate',summary:'Open public smoke-test page',url:'https://example.com'})
       : {tool:'done',summary:'Smoke test completed after inspecting the page'};
     res.end(JSON.stringify({message:{role:'assistant',content:JSON.stringify(action)},done:true})); return;
   }
@@ -106,8 +109,8 @@ try{
   });
   agent.stdout.on('data',d=>logs+=d);agent.stderr.on('data',d=>logs+=d);
   const base=`http://${host}:${agentPort}`;
-  async function request(path,body,withAuth=true){
-    const headers={'Content-Type':'application/json','Origin':'http://localhost:5173'};
+  async function request(path,body,withAuth=true,origin='http://localhost:5173'){
+    const headers={'Content-Type':'application/json','Origin':origin};
     if(withAuth)headers.Authorization=`Bearer ${token}`;
     return fetch(base+path,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)});
   }
@@ -122,6 +125,11 @@ try{
   assert.equal(healthJson.modelLoaded,true,'agent should detect the local model');
   const unauthorized=await request('/health',undefined,false);
   assert.equal(unauthorized.status,401,'agent must reject requests without bearer token');
+  const rejectedOrigin=await request('/health',undefined,true,'https://attacker.example');
+  assert.equal(rejectedOrigin.status,403,'agent must reject unapproved browser origins');
+  const deniedDirectPcClick=await request('/api/pc/click',{allowPcControl:true,x:1,y:1});
+  assert.equal(deniedDirectPcClick.status,403,'direct desktop click must reject requests when PC permission is off');
+  console.log('PASS browser-origin allowlist and direct PC-control gating');
   const blocked=await request('/api/browser/navigate',{url:`http://127.0.0.1:${agentPort}/health`});
   assert.equal(blocked.status,400,'agent must reject loopback/private network navigation');
   const run=await request('/api/run',{prompt:'Open https://example.com and inspect the page',mode:'browser',maxSteps:3});
@@ -148,6 +156,18 @@ try{
   console.log('PASS private/loopback URL blocking');
   console.log('PASS mocked-local-Ollama -> Playwright navigation -> screenshot');
   console.log('PASS browser title + visible text verification');
+  const resumeRun=await request('/api/run',{prompt:'approval-resume-test',mode:'browser',maxSteps:3});
+  const resumePending=await resumeRun.json();
+  assert.equal(resumeRun.status,200,JSON.stringify(resumePending).slice(0,500));
+  assert.ok(resumePending.pendingApproval,'state-changing action should pause before execution');
+  const approvedResume=await request('/api/approve',{approved:true});
+  const approvedResumeJson=await approvedResume.json();
+  assert.equal(approvedResume.status,200,JSON.stringify(approvedResumeJson).slice(0,500));
+  assert.match(approvedResumeJson.message,/task resumed/i,'approval should resume remaining task steps');
+  assert.equal(approvedResumeJson.pendingApproval,null,'resumed task should clear approval request');
+  assert.match(approvedResumeJson.currentUrl,/example\.com\/save$/,'approved destination should be observed after navigation');
+  console.log('PASS user approval executes the action and resumes remaining task steps');
+
   const pendingRun=await request('/api/run',{prompt:'approval-expiry-test',mode:'browser',maxSteps:3});
   const pendingJson=await pendingRun.json();
   assert.equal(pendingRun.status,200,JSON.stringify(pendingJson).slice(0,500));
