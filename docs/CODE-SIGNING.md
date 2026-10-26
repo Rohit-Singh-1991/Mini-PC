@@ -1,45 +1,45 @@
-# Windows Authenticode signing
+# PromptPilot Windows Code Signing Policy
 
-## Current status
+## Current release status
 
-The installer wizard compiles successfully, but the currently published `PromptPilotSetup.exe` asset is **not Authenticode-signed**. Do not describe or distribute that existing asset as signed. The updated release workflow now publishes a new `installer-latest` asset only after a signing service has signed it and Windows verifies both the signature and timestamp.
+**Current published installer: UNSIGNED.** This project has not yet been approved for a SignPath Foundation certificate. A release will be described as Authenticode-signed only after the release workflow verifies a trusted signer certificate, a valid signature, and a timestamp certificate. Do not treat the existing release asset as signed.
 
-The workflow is prepared for SignPath. It does not create a fake/self-signed certificate and will not publish a release when SignPath is not configured.
+The project intends to apply for sponsored open-source signing. **Only after approval**, the planned attribution is: “Free code signing provided by SignPath.io, certificate by SignPath Foundation”. This is a future intent, not a claim that the Foundation has accepted or signed a current release.
 
-## Recommended no-cost route: SignPath Foundation (approval required)
+## What would be signed
 
-This repository is public and has a GPL-3.0 license. SignPath Foundation offers code signing for eligible open-source projects, subject to application review and its conditions. If approved, the signing certificate is issued to SignPath Foundation, so Windows will show that publisher rather than DigiCreators. See the [SignPath Foundation terms](https://github.com/SignPath/fdn-website/blob/main/docs/terms.md).
+Only the PromptPilot setup executable built from the public [Mini-PC source repository](https://github.com/Rohit-Singh-1991/Mini-PC) by its Windows GitHub Actions workflow is eligible to be submitted for signing. Third-party tools, runtime installers, Node packages, Ollama models, Chromium binaries and cloud services are not signed by this project. The installed agent and dependencies run locally; dashboard/tunnel connectivity is only used when a user explicitly connects the dashboard to a local agent.
 
-1. Apply at [SignPath Foundation](https://signpath.org/apply). The project application and any terms/identity declarations must be completed by the repository owner. Approval is not automatic.
-2. After approval, configure the SignPath organization with the predefined **GitHub.com trusted build system** and link it to this project. Install the SignPath GitHub App for the repository if SignPath requests it.
-3. Create a project for `Rohit-Singh-1991/Mini-PC`. Configure an artifact configuration that signs the `PromptPilotSetup.exe` PE file using Authenticode, with SHA-256 and a trusted timestamp. Configure a release-signing policy that uses this certificate and restricts submissions to the `main` branch. Manual approval for release-signing is recommended.
-4. Create a SignPath CI user/API token that is permitted to submit to the release-signing policy.
-5. In GitHub, open **Settings → Secrets and variables → Actions** for this repository. Add the following secret and repository variables:
+## Team roles
 
-   | Name | GitHub entry type | Value |
-   | --- | --- | --- |
-   | `SIGNPATH_API_TOKEN` | Secret | API token from the authorized SignPath CI user |
-   | `SIGNPATH_ORGANIZATION_ID` | Variable | ID shown for the SignPath organization |
-   | `SIGNPATH_PROJECT_SLUG` | Variable | Exact project slug configured in SignPath |
-   | `SIGNPATH_SIGNING_POLICY_SLUG` | Variable | Exact release-signing policy slug configured in SignPath |
+This is currently a solo-maintained repository.
 
-6. After those are configured and approval is complete, push a normal change under `main` or manually run [Build and Authenticode-sign Windows installer](https://github.com/Rohit-Singh-1991/Mini-PC/actions/workflows/windows-installer.yml). The workflow builds the installer, uploads the unsigned candidate privately as a workflow artifact for the signing request, waits for SignPath, verifies the signed result in Windows, checks for a trusted timestamp, and only then publishes the signed installer to the release.
+- **Committer and maintainer:** [Rohit-Singh-1991](https://github.com/Rohit-Singh-1991), the public repository owner.
+- **Reviewer:** the maintainer reviews proposed changes before merging. Contributions from others should use pull requests and must be reviewed before merge.
+- **Signing approver:** the maintainer must manually review every release-signing request before approval.
 
-If signing variables/secrets are absent, the workflow can compile an internal candidate but will skip publishing a release asset. Never upload a PFX or private key to the repository or paste it into a chat.
+The repository owner must enable and maintain multi-factor authentication for GitHub and SignPath accounts, and keep the source code, build scripts, and workflows open for review.
 
-## Verify a published release on Windows
+## Privacy statement
 
-After the signed release is available, download the asset and run in PowerShell:
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. Browser automation, prompt planning and desktop actions run on the user's computer. The local agent can connect to the hosted dashboard only after the user starts a temporary tunnel and supplies its URL and local bearer token. Installation downloads third-party software and models from their respective publishers. See the [agent setup guide](../agent/README.md) and their policies: [Ollama](https://ollama.com/legal), [Cloudflare](https://www.cloudflare.com/privacypolicy/), [npm](https://docs.npmjs.com/policies/privacy).
+
+## Installation and uninstallation
+
+The Windows installer offers browser-only or full PC-vision installation. To uninstall, use **Windows Settings → Apps → Installed apps → PromptPilot Local Agent → Uninstall**. The uninstaller removes the PromptPilot installation folder and shortcuts; it does not uninstall independently installed Node.js, Ollama, Cloudflare Tunnel, or remove downloaded Ollama models. These may be removed separately by the user.
+
+## Signature verification
+
+After a future signed release is available, verify the downloaded installer in PowerShell:
 
 ```powershell
 Get-AuthenticodeSignature .\PromptPilotSetup.exe |
   Format-List Status, StatusMessage, SignerCertificate, TimeStamperCertificate
-
 Get-FileHash .\PromptPilotSetup.exe -Algorithm SHA256
 ```
 
-Expected signature status is `Valid`, with both a signer certificate and timestamp certificate. A valid Authenticode signature establishes the signer's identity and file integrity; it does not guarantee immediate SmartScreen reputation for a newly signed publisher. SmartScreen warnings can persist until reputation builds.
+A valid signature and trusted timestamp are required before a release workflow can publish the signed asset. A valid signature establishes the signer's identity and file integrity; it does not guarantee immediate SmartScreen reputation for a newly signed publisher.
 
-## If you already own a commercial code-signing certificate
+## How sponsored signing is being prepared
 
-Do not send the private key in this chat. The current automation uses SignPath. The workflow can be adapted to your existing CA-issued certificate after the certificate provider and safe CI signing method are confirmed.
+The public repository uses GPL-3.0 and the release pipeline builds on GitHub-hosted Windows runners. SignPath Foundation approval is not automatic. After the repository owner is accepted, the owner must configure a SignPath organization, GitHub trusted build system, project, Authenticode artifact configuration, and a release-signing policy. The owner must set GitHub Actions secret `SIGNPATH_API_TOKEN` and repository variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, and `SIGNPATH_SIGNING_POLICY_SLUG`. The workflow then signs, verifies, and publishes only the signed result.
