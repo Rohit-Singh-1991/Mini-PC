@@ -42,7 +42,7 @@ jobs:
             throw "PromptPilotSetup.exe was not produced."
           }
           $hash = (Get-FileHash $setup -Algorithm SHA256).Hash
-          "Installer SHA-256: `$hash" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Installer SHA-256: $hash" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           Get-Item $setup | Format-List Name,Length,LastWriteTime
 
       - name: Upload installer artifact
