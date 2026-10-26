@@ -18,7 +18,7 @@ function loadToken() {
   throw new Error('PromptPilot token not found. Start agent.mjs once first, or set PROMPTPILOT_TOKEN.');
 }
 const TOKEN = loadToken();
-const SERVER_INFO = { name: 'promptpilot-local-bridge', version: '1.1.0' };
+const SERVER_INFO = { name: 'promptpilot-local-bridge', version: '1.2.0' };
 const PROTOCOL_VERSION = '2025-03-26';
 
 function json(res, status, body) {
@@ -97,7 +97,7 @@ const TOOLS = [
   },
   {
     name: 'run_pc_task',
-    description: 'Run a short, supervised local-Ollama vision task on the actual desktop. Must set confirmPcControl=true for this task. Sensitive or irreversible actions pause for user approval; no shell commands are available. This call revokes the one-shot PC permission after the task finishes.',
+    description: 'Run a short, supervised local-Ollama vision task on the actual desktop. Must set confirmPcControl=true. Each desktop action pauses for explicit approval in the dashboard; no shell commands are available. PC permission is revoked after the task finishes, is rejected, or its pending approval expires.',
     inputSchema: { type: 'object', properties: { prompt: { type: 'string', minLength: 1, maxLength: 1000 }, maxSteps: { type: 'integer', minimum: 1, maximum: 4 }, confirmPcControl: { type: 'boolean', description: 'Must be true after direct user confirmation to control the desktop for this task.' } }, required: ['prompt', 'confirmPcControl'], additionalProperties: false }
   },
   {
@@ -155,10 +155,14 @@ async function callTool(name, args = {}) {
     const steps = Number.isInteger(args.maxSteps) ? Math.max(1, Math.min(4, args.maxSteps)) : 2;
     let result;
     try {
-      result = await agentRequest('/api/run', 'POST', { prompt: args.prompt.trim(), mode: 'pc', maxSteps: steps, allowPcControl: true });
-    } finally {
+      result = await agentRequest('/api/run', 'POST', { prompt: args.prompt.trim(), mode: 'pc', maxSteps: steps, allowPcControl: true, autoRevokePc: true });
+    } catch (error) {
       await agentRequest('/api/pc/revoke', 'POST', {}).catch(() => {});
+      throw error;
     }
+    // Keep one-shot permission only while a user approval is actively pending.
+    // The local agent expires pending approvals after 90 seconds and revokes PC access.
+    if (!result.pendingApproval) await agentRequest('/api/pc/revoke', 'POST', {}).catch(() => {});
     const shot = result.screenshot;
     const summary = { ...result };
     if (summary.screenshot) summary.screenshot = { url: shot?.url || 'Desktop', width: shot?.width, height: shot?.height, mime: shot?.mime };
