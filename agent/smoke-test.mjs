@@ -3,6 +3,8 @@ import { isPrivateAddress, safeUrl, redactUrlForDisplay } from './security.mjs';
 import { actionNeedsApproval } from './approval-policy.mjs';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const blockedAddresses = [
@@ -44,6 +46,7 @@ console.log('PASS IP classification: private, special-use, mapped IPv4 and publi
 console.log('PASS unsafe URL credential rejection');
 console.log('PASS conservative browser/desktop action approval policy');
 
+const agentDirectory=path.dirname(fileURLToPath(import.meta.url));
 const host='127.0.0.1';
 const ollamaPort=14351;
 const agentPort=13921;
@@ -71,7 +74,7 @@ let agent,bridge,logs='',bridgeLogs='';
 try{
   await new Promise((resolve,reject)=>{mockOllama.once('error',reject);mockOllama.listen(ollamaPort,host,resolve)});
   agent=spawn(process.execPath,['agent.mjs'],{
-    cwd:new URL('.',import.meta.url).pathname,
+    cwd:agentDirectory,
     env:{...process.env,PORT:String(agentPort),OLLAMA_URL:`http://${host}:${ollamaPort}`,OLLAMA_MODEL:'mock:latest',OLLAMA_VISION_MODEL:'mock-vision:latest',PROMPTPILOT_TOKEN:token,PROMPTPILOT_ALLOWED_ORIGINS:'http://localhost:5173'},
     stdio:['ignore','pipe','pipe']
   });
@@ -121,7 +124,7 @@ try{
   console.log('PASS browser title + visible text verification');
 
   bridge=spawn(process.execPath,['mcp-bridge.mjs'],{
-    cwd:new URL('.',import.meta.url).pathname,
+    cwd:agentDirectory,
     env:{...process.env,PROMPTPILOT_MCP_HOST:host,PROMPTPILOT_MCP_PORT:'13922',PROMPTPILOT_AGENT_URL:base,PROMPTPILOT_TOKEN:token},
     stdio:['ignore','pipe','pipe']
   });
