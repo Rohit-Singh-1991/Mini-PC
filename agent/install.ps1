@@ -6,7 +6,7 @@ New-Item -ItemType Directory -Force -Path $Folder | Out-Null
 Set-Location $Folder
 Write-Host "Setting up PromptPilot Local Agent in $Folder" -ForegroundColor Cyan
 
-# Prefer files downloaded together from the private GitHub repository. This also works
+# Prefer files downloaded together from the public GitHub repository. This also works
 # before the dashboard's first deployment. Only fall back to the hosted downloads when
 # the local source files are missing.
 foreach ($File in @("agent.mjs", "package.json", "README.md")) {
