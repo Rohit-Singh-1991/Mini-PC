@@ -10,6 +10,7 @@ await rm(dist, { recursive: true, force: true });
 await mkdir(publicAgent, { recursive: true });
 await copyFile(path.join(root, 'index.html'), path.join(dist, 'index.html'));
 await copyFile(path.join(root, 'app.js'), path.join(dist, 'app.js'));
+await copyFile(path.join(root, 'agent-connection-policy.mjs'), path.join(dist, 'agent-connection-policy.mjs'));
 
 const downloadableFiles = [
   'README.md',
