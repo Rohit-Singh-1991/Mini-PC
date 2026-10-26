@@ -3,7 +3,7 @@
 A free, local-first dashboard for an in-app browser and supervised desktop PC control.
 
 - **Dashboard:** https://inapp-pc.vercel.app
-- **Windows installer:** https://github.com/Rohit-Singh-1991/Mini-PC/releases/latest/download/PromptPilotSetup.exe
+- **Windows installer status:** The installer wizard builds successfully, but the current published EXE is not Authenticode-signed yet. The release workflow will publish a replacement only after trusted signing and signature verification. See [Windows Authenticode signing](docs/CODE-SIGNING.md).
 - **Source code:** https://github.com/Rohit-Singh-1991/Mini-PC
 
 The Windows installer opens a setup wizard and runs the installation commands from `installer/install-agent.bat`. It checks for Node.js 22+ and Ollama, attempts to install missing prerequisites with Windows Package Manager (winget), installs the Node dependencies and Playwright Chromium, then downloads the local `qwen2.5:3b` model. The full-install option also downloads `llava:7b` for screenshot-based PC control; that model is several gigabytes. A Browser-only setup can skip it.
