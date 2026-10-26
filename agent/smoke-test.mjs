@@ -88,7 +88,9 @@ const mockOllama=http.createServer(async(req,res)=>{
     const input=JSON.parse(body.messages?.[1]?.content||'{}');
     chatCalls++;
     const action=input.step===1
-      ? {tool:'navigate',summary:'Open public smoke-test page',url:'https://example.com'}
+      ? (String(input.goal||'').includes('approval-expiry-test')
+          ? {tool:'navigate',summary:'Open unsubscribe page for expiry test',url:'https://example.com/unsubscribe'}
+          : {tool:'navigate',summary:'Open public smoke-test page',url:'https://example.com'})
       : {tool:'done',summary:'Smoke test completed after inspecting the page'};
     res.end(JSON.stringify({message:{role:'assistant',content:JSON.stringify(action)},done:true})); return;
   }
@@ -99,7 +101,7 @@ try{
   await new Promise((resolve,reject)=>{mockOllama.once('error',reject);mockOllama.listen(ollamaPort,host,resolve)});
   agent=spawn(process.execPath,['agent.mjs'],{
     cwd:agentDirectory,
-    env:{...process.env,PORT:String(agentPort),OLLAMA_URL:`http://${host}:${ollamaPort}`,OLLAMA_MODEL:'mock:latest',OLLAMA_VISION_MODEL:'mock-vision:latest',PROMPTPILOT_TOKEN:token,PROMPTPILOT_ALLOWED_ORIGINS:'http://localhost:5173'},
+    env:{...process.env,PORT:String(agentPort),OLLAMA_URL:`http://${host}:${ollamaPort}`,OLLAMA_MODEL:'mock:latest',OLLAMA_VISION_MODEL:'mock-vision:latest',PROMPTPILOT_TOKEN:token,PROMPTPILOT_ALLOWED_ORIGINS:'http://localhost:5173',PROMPTPILOT_APPROVAL_TTL_MS:'1000',PROMPTPILOT_PC_IDLE_TTL_MS:'10000'},
     stdio:['ignore','pipe','pipe']
   });
   agent.stdout.on('data',d=>logs+=d);agent.stderr.on('data',d=>logs+=d);
@@ -146,6 +148,14 @@ try{
   console.log('PASS private/loopback URL blocking');
   console.log('PASS mocked-local-Ollama -> Playwright navigation -> screenshot');
   console.log('PASS browser title + visible text verification');
+  const pendingRun=await request('/api/run',{prompt:'approval-expiry-test',mode:'browser',maxSteps:3});
+  const pendingJson=await pendingRun.json();
+  assert.equal(pendingRun.status,200,JSON.stringify(pendingJson).slice(0,500));
+  assert.ok(pendingJson.pendingApproval,'state-changing navigation must pause for user approval');
+  await delay(1350);
+  const expiredApproval=await request('/api/approve',{approved:true});
+  assert.equal(expiredApproval.status,409,'pending approvals must expire automatically without a follow-up request');
+  console.log('PASS timed approval expiry and rejection of stale approvals');
 
   bridge=spawn(process.execPath,['mcp-bridge.mjs'],{
     cwd:agentDirectory,
@@ -191,6 +201,13 @@ try{
   assert.equal(pcDisabled.desktopPermission,false,'PC revoke should disable desktop permission');
   console.log('PASS MCP initialize + nine-tool discovery + authenticated browser snapshot');
   console.log('PASS explicit desktop authorization, denied task without consent, and revoke');
+  const authorizeForExpiry=await request('/api/pc/authorize',{allowPcControl:true});
+  assert.equal(authorizeForExpiry.status,200,'explicit PC authorization should activate idle timeout');
+  assert.equal((await (await request('/health')).json()).desktopPermission,true,'PC permission should be active before timeout');
+  await delay(10500);
+  const pcExpiryHealth=await (await request('/health')).json();
+  assert.equal(pcExpiryHealth.desktopPermission,false,'PC permission must expire automatically after idle timeout');
+  console.log('PASS desktop permission auto-revocation after inactivity');
 }catch(err){
   console.error('PromptPilot smoke test failed:',err);
   if(agent)console.error('Agent output:',logs);
