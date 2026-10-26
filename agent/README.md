@@ -10,7 +10,7 @@ Requirements: Node.js 22+, Ollama (https://ollama.com/download), and a desktop c
 
 ## Windows (recommended: setup wizard)
 
-1. Download and run the [PromptPilot Windows installer](https://github.com/Rohit-Singh-1991/Mini-PC/releases/latest/download/PromptPilotSetup.exe).
+1. Review the current [Windows Authenticode signing status](../docs/CODE-SIGNING.md). The installer wizard builds, but the existing public EXE is not yet Authenticode-signed. Do not treat it as signed; a new downloadable release will be published after trusted signing is approved and verified.
 2. Choose **Full install** for browser automation plus PC control, or **Browser automation only** if you do not want the extra vision model. Full install downloads `llava:7b`, which is several gigabytes.
 3. The installer runs `installer/install-agent.bat`. The batch script checks for Node.js 22+ and Ollama, attempts to install missing prerequisites with Windows Package Manager (winget), installs npm dependencies and Playwright Chromium, starts/checks Ollama, and pulls `qwen2.5:3b` plus the optional PC vision model. If winget installation is unavailable, install Node.js from https://nodejs.org/ and Ollama from https://ollama.com/download, then rerun the batch script in the installed `PromptPilotAgent` folder.
 4. Open **Start PromptPilot Agent** from the Start Menu. Keep the terminal open and copy the bearer token it prints.
