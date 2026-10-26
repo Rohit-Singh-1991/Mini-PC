@@ -13,6 +13,7 @@ export function actionNeedsApproval({ action, mode, targetText = '', clickInfo =
     action?.value,
     action?.summary,
     action?.key,
+    action?.url,
     clickInfo?.text,
     clickInfo?.ariaLabel,
     clickInfo?.title,
@@ -21,7 +22,10 @@ export function actionNeedsApproval({ action, mode, targetText = '', clickInfo =
   ].filter(Boolean).join(' ');
 
   if (mode === 'pc' && ['pc_click', 'pc_type', 'pc_key'].includes(tool)) return true;
-  if (RISKY_WORDS.test(actionText) && ['click', 'pc_click', 'pc_type', 'pc_key', 'fill', 'select'].includes(tool)) return true;
+  if (RISKY_WORDS.test(actionText) && ['navigate', 'click', 'pc_click', 'pc_type', 'pc_key', 'fill', 'select'].includes(tool)) return true;
+  // Entering or selecting form data can disclose personal/business information;
+  // pause so the user can verify the destination and intended values first.
+  if (mode === 'browser' && ['fill', 'select'].includes(tool)) return true;
 
   if (mode === 'browser' && tool === 'click') {
     if (!clickInfo) return true;
