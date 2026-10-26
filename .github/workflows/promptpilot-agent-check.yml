@@ -34,9 +34,10 @@ jobs:
           node --input-type=module -e '
           import fs from "node:fs";
           const h=fs.readFileSync("index.html","utf8");
-          const script=h.match(/<script>([\s\S]*?)<\/script>/);
-          if (!script) throw new Error("dashboard script is missing");
-          new Function(script[1]);
+          const app=fs.readFileSync("app.js","utf8");
+          if (!h.includes('<script src="/app.js" defer></script>')) throw new Error("dashboard must load external app.js");
+          if (/<script>([\\s\\S]*?)<\\/script>/.test(h)) throw new Error("inline scripts are forbidden by the release CSP");
+          new Function(app);
           for (const s of ["prompt","agentUrl","agentToken","previewImage","allowPC","sessionStorage","URL security module","Approval policy","/api/run","/api/approve","/api/pc/click","/agent/agent.mjs","/agent/mcp-bridge.mjs"]) if (!h.includes(s)) throw new Error("missing UI element or route: "+s);
           const a=fs.readFileSync("agent/agent.mjs","utf8");
           const sec=fs.readFileSync("agent/security.mjs","utf8");
@@ -45,7 +46,9 @@ jobs:
           for (const s of ["dns.lookup","isPrivateAddress","::ffff","embedded usernames or passwords","Private or reserved IP","redactUrlForDisplay","safeWebSocketUrl"]) if (!sec.includes(s)) throw new Error("missing URL validation feature: "+s);
           for (const s of ["actionNeedsApproval","formAssociated","submitType","mode ==="]) if (!ap.includes(s)) throw new Error("missing approval policy: "+s);
           const build=fs.readFileSync("build.mjs","utf8");
-          for (const s of ["security.mjs","approval-policy.mjs"]) if (!build.includes(s)) throw new Error("setup bundle omits "+s);
+          const csp=fs.readFileSync("vercel.json","utf8");
+          if (!csp.includes("script-src 'self';") || csp.includes("script-src 'self' 'unsafe-inline'")) throw new Error("CSP must block inline JavaScript");
+          for (const s of ["app.js","security.mjs","approval-policy.mjs"]) if (!build.includes(s)) throw new Error("setup bundle omits "+s);
           const installer=fs.readFileSync("agent/install.ps1","utf8");
           for (const s of ["$PSScriptRoot","Copy-Item","npm install","npx playwright install chromium","ollama pull qwen2.5:3b"]) if (!installer.includes(s)) throw new Error("missing installer step: "+s);
           console.log("Dashboard routes, agent safety controls and installer present");
