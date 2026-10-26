@@ -9,7 +9,7 @@ Write-Host "Setting up PromptPilot Local Agent in $Folder" -ForegroundColor Cyan
 # Prefer files downloaded together from the public GitHub repository. This also works
 # before the dashboard's first deployment. Only fall back to the hosted downloads when
 # the local source files are missing.
-foreach ($File in @("agent.mjs", "package.json", "README.md")) {
+foreach ($File in @("agent.mjs", "package.json", "README.md", "mcp-bridge.mjs", "smoke-test.mjs", "security.mjs", "approval-policy.mjs")) {
   $LocalFile = Join-Path $Source $File
   if (Test-Path $LocalFile) {
     Copy-Item $LocalFile (Join-Path $Folder $File) -Force
@@ -17,7 +17,7 @@ foreach ($File in @("agent.mjs", "package.json", "README.md")) {
     try {
       Invoke-WebRequest "$Base/$File" -OutFile $File
     } catch {
-      throw "Could not fetch $File from the dashboard. Download agent.mjs, package.json, README.md and install.ps1 from the PromptPilot agent folder in GitHub, keep them together, and run install.ps1 again."
+      throw "Could not fetch $File from the dashboard. Download the Mini-PC setup kit from Connection & setup, keep all agent files together, and run install.ps1 again."
     }
   }
 }
