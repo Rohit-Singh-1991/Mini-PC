@@ -38,7 +38,10 @@ jobs:
           if (!h.includes('<script src="/app.js" defer></script>')) throw new Error("dashboard must load external app.js");
           if (/<script>([\s\S]*?)<\/script>/.test(h)) throw new Error("inline scripts are forbidden by the release CSP");
           new Function(app);
-          for (const s of ["prompt","agentUrl","agentToken","previewImage","allowPC","sessionStorage","URL security module","Approval policy","/api/run","/api/approve","/api/pc/click","/agent/agent.mjs","/agent/mcp-bridge.mjs"]) if (!h.includes(s)) throw new Error("missing UI element or route: "+s);
+          for (const s of ["prompt","agentUrl","agentToken","previewImage","allowPC","URL security module","Approval policy","/agent/agent.mjs","/agent/mcp-bridge.mjs"]) if (!h.includes(s)) throw new Error("missing UI element or route: "+s);
+          for (const s of ["sessionStorage","/api/run","/api/approve","/api/pc/click"]) if (!app.includes(s)) throw new Error("missing dashboard behavior: "+s);
+          for (const s of ["app.js","index.html"]) if (!fs.existsSync("dist/"+s)) throw new Error("production build is missing dist/"+s);
+          for (const s of ["security.mjs","approval-policy.mjs","mcp-bridge.mjs","install.ps1"]) if (!fs.existsSync("dist/agent/"+s)) throw new Error("setup kit is missing "+s);
           const a=fs.readFileSync("agent/agent.mjs","utf8");
           const sec=fs.readFileSync("agent/security.mjs","utf8");
           const ap=fs.readFileSync("agent/approval-policy.mjs","utf8");
