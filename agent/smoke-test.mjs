@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { isPrivateAddress, safeUrl } from './security.mjs';
+import { isPrivateAddress, safeUrl, redactUrlForDisplay } from './security.mjs';
 import { actionNeedsApproval } from './approval-policy.mjs';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
@@ -20,6 +20,11 @@ for (const ip of ['8.8.8.8', '1.1.1.1', '2606:4700:4700::1111', '2001:4860:4860:
   assert.equal(isPrivateAddress(ip), false, 'must allow public address ' + ip);
 }
 await assert.rejects(() => safeUrl('https://user:pass@example.com'), /embedded usernames or passwords/);
+const displayedUrl = new URL(redactUrlForDisplay('https://example.com/callback?access_token=secret-value&state=csrf-state&view=grid'));
+assert.equal(displayedUrl.searchParams.get('access_token'), '[redacted]', 'access tokens must not appear in UI URLs');
+assert.equal(displayedUrl.searchParams.get('state'), '[redacted]', 'OAuth state values must not appear in UI URLs');
+assert.equal(displayedUrl.searchParams.get('view'), 'grid', 'ordinary query parameters should remain readable');
+
 await assert.rejects(() => safeUrl('http://[::ffff:172.16.0.1]/'), /Private or reserved IP blocked/);
 assert.equal(actionNeedsApproval({
   action: { tool: 'click', target: 'Save changes' }, mode: 'browser',
