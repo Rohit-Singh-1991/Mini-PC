@@ -7,6 +7,13 @@
 AppId={{6D52D4B7-8C51-4D96-A8FD-9D1528A0D641}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+VersionInfoVersion=1.0.0.0
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription={#MyAppName} Setup
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppVersion}
+VersionInfoCopyright=Copyright (C) 2026 DigiCreators
+LicenseFile=..\\LICENSE
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL=https://github.com/Rohit-Singh-1991/Mini-PC/issues
