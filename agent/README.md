@@ -2,7 +2,7 @@
 
 **Live dashboard:** https://inapp-pc.vercel.app
 
-The dashboard is deployed. If you are on mobile, you can review the interface, but installing the local runner, starting Ollama, opening Chromium, and connecting a tunnel still require your Windows/macOS/Linux computer. To set up from source, download the agent files from the [PromptPilot agent folder in GitHub](https://github.com/Rohit-Singh-1991/InAppPC/tree/main/agent), save them in one folder, inspect `install.ps1`, and run it from PowerShell.
+The dashboard is deployed. If you are on mobile, you can review the interface, but installing the local runner, starting Ollama, opening Chromium, and connecting a tunnel still require your Windows/macOS/Linux computer. To set up from source, download the agent files from the [PromptPilot agent folder in GitHub](https://github.com/Rohit-Singh-1991/Mini-PC/tree/main/agent), save them in one folder, inspect `install.ps1`, and run it from PowerShell.
 
 The dashboard is hosted in the cloud. Ollama, Chromium/Playwright and desktop controls run on your PC to avoid paid AI APIs and hosted-browser minutes. This is not a permanent cloud virtual PC.
 
