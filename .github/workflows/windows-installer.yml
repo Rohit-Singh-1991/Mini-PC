@@ -1,4 +1,4 @@
-name: Build and Authenticode-sign Windows installer
+name: Build Windows installer and sign when configured
 
 on:
   push:
@@ -100,21 +100,22 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Failed to label the existing release as unsigned." }
           if ($hasInstaller) { Write-Host "Existing unsigned installer asset remains available but the release is clearly labelled UNSIGNED." }
 
-      - name: Require trusted signing before completing this workflow
+      - name: Withhold public release until trusted signing is configured
         if: steps.signing-config.outputs.ready != 'true'
         shell: pwsh
         run: |
-          throw "Trusted Authenticode signing is not configured. The existing release was labelled UNSIGNED; submit the SignPath Foundation application, configure the SignPath project, then set the GitHub Actions secret and variables listed in docs/CODE-SIGNING.md."
+          Write-Warning "Trusted Authenticode signing is not configured. No public release will be published."
+          "## Unsigned installer artifact built; trusted release withheld" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Download the PromptPilot-Windows-Installer-Unsigned workflow artifact for testing only. It is unsigned and is not a trusted release. Follow docs/CODE-SIGNING.md to configure SignPath before publishing." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
-      - name: Upload unsigned candidate for SignPath
-        if: steps.signing-config.outputs.ready == 'true'
+      - name: Upload unsigned installer candidate for testing or signing
         id: upload-unsigned-artifact
         uses: actions/upload-artifact@v4
         with:
           name: PromptPilot-Windows-Installer-Unsigned
           path: dist-installer/PromptPilotSetup.exe
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
 
       - name: Submit Authenticode signing request
         if: steps.signing-config.outputs.ready == 'true'
